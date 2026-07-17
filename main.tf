@@ -118,3 +118,51 @@ resource "azurerm_storage_account_static_website" "website" {
   index_document = "index.html"
   error_404_document = "error.html"
 }
+
+resource "azurerm_storage_blob" "index_html" {
+  name                   = "index.html"
+  storage_account_name   = azurerm_storage_account.storage.name
+  storage_container_name = "$web"  # Static website container
+  type                   = "Block"
+  content_type           = "text/html"
+  source                 = "website/index.html"  # Path to local file
+}
+
+resource "azurerm_storage_blob" "styles_css" {
+  name                   = "styles.css"
+  storage_account_name   = azurerm_storage_account.storage.name
+  storage_container_name = "$web"
+  type                   = "Block"
+  content_type           = "text/css"
+  source                 = "website/styles.css"  # Path to local file
+}
+
+resource "azurerm_storage_blob" "scripts_js" {
+  name                   = "script.js"
+  storage_account_name   = azurerm_storage_account.storage.name
+  storage_container_name = "$web"
+  type                   = "Block"
+  content_type           = "application/javascript"
+  source                 = "website/script.js"  # Path to local file
+}
+
+resource "azurerm_storage_blob" "assets" {
+  for_each = fileset("website/assets", "**/*")
+
+  name                   = "assets/${each.value}"
+  storage_account_name   = azurerm_storage_account.storage.name
+  storage_container_name = "$web"
+  type                   = "Block"
+  content_type           = lookup(
+    {
+      "png"  = "image/png"
+      "jpg"  = "image/jpeg"
+      "jpeg" = "image/jpeg"
+      "gif"  = "image/gif"
+      "svg"  = "image/svg+xml"
+    },
+    split(".", each.value)[length(split(".", each.value)) - 1],
+    "application/octet-stream"
+  )
+  source = "website/assets/${each.value}"  # Path to local assets
+}
