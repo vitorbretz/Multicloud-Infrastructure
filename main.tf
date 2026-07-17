@@ -13,6 +13,14 @@ provider "azurerm" {
   tenant_id       = var.azure_tenant_id
 }
 
+resource "aws_s3_bucket" "weather_app" {
+  bucket = "multicloud-weather-app-vitor-2026"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "aws_s3_bucket_website_configuration" "website" {
   bucket = aws_s3_bucket.weather_app.id
 
