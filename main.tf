@@ -166,3 +166,7 @@ resource "azurerm_storage_blob" "assets" {
   )
   source = "website/assets/${each.value}"  # Path to local assets
 }
+
+resource "aws_route53_zone" "main" {
+  name = "yourdomain.com"
+}
