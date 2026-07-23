@@ -168,5 +168,13 @@ resource "azurerm_storage_blob" "assets" {
 }
 
 resource "aws_route53_zone" "main" {
-  name = "yourdomain.com"
+  name = "cloud.flog.br"
+}
+
+resource "aws_route53_health_check" "aws_health_check" {
+  type              = "HTTPS"
+  fqdn              = "distribution-cloud.flog.br"
+  port              = 443
+  request_interval  = 30
+  failure_threshold = 3
 }
