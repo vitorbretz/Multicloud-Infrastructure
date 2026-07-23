@@ -178,3 +178,11 @@ resource "aws_route53_health_check" "aws_health_check" {
   request_interval  = 30
   failure_threshold = 3
 }
+
+resource "aws_route53_health_check" "azure_health_check" {
+  type              = "HTTPS"
+  fqdn              = "myaccounttostorageweb.z13.web.core.windows.net"
+  port              = 443
+  request_interval  = 30
+  failure_threshold = 3
+}
