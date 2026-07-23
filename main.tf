@@ -186,3 +186,40 @@ resource "aws_route53_health_check" "azure_health_check" {
   request_interval  = 30
   failure_threshold = 3
 }
+
+resource "aws_route53_record" "primary" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "cloud.flog.br"
+  type    = "A"
+​
+  alias {
+    name                   = "distribution-cloud.flog.br"
+    zone_id                = "Z0047040XW8P8MS7S80T"  # CloudFront's hosted zone ID
+    evaluate_target_health = true
+  }
+​
+  failover_routing_policy {
+    type = "PRIMARY"
+  }
+​
+  set_identifier = "primary"
+  health_check_id = aws_route53_health_check.aws_health_check.id
+}
+
+resource "aws_route53_record" "secondary" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "cloud.flog.br"
+  type    = "CNAME"
+​
+  records = ["myaccounttostorageweb.z13.web.core.windows.net"]
+​
+  ttl = 300
+​
+  failover_routing_policy {
+    type = "SECONDARY"
+  }
+​
+  set_identifier = "secondary"
+  health_check_id = aws_route53_health_check.azure_health_check.id
+}
+​
