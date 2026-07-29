@@ -119,46 +119,43 @@ resource "azurerm_storage_account_static_website" "website" {
   error_404_document = "error.html"
 }
 
-resource "azurerm_storage_blob" "index_html" {
-  name                   = "index.html"
-  storage_account_name   = azurerm_storage_account.storage.name
-  storage_container_name = "$web"
-  type                   = "Block"
-  content_type           = "text/html"
-  source                 = "website/index.html"
+data "azurerm_storage_container" "web" {
+  name               = "$web"
+  storage_account_id = azurerm_storage_account.storage.id
 
   depends_on = [azurerm_storage_account_static_website.website]
+}
+
+resource "azurerm_storage_blob" "index_html" {
+  name                 = "index.html"
+  storage_container_id = data.azurerm_storage_container.web.id
+  type                 = "Block"
+  content_type         = "text/html"
+  source               = "website/index.html"
 }
 
 resource "azurerm_storage_blob" "styles_css" {
-  name                   = "styles.css"
-  storage_account_name   = azurerm_storage_account.storage.name
-  storage_container_name = "$web"
-  type                   = "Block"
-  content_type           = "text/css"
-  source                 = "website/styles.css"
-
-  depends_on = [azurerm_storage_account_static_website.website]
+  name                 = "styles.css"
+  storage_container_id = data.azurerm_storage_container.web.id
+  type                 = "Block"
+  content_type         = "text/css"
+  source               = "website/styles.css"
 }
 
 resource "azurerm_storage_blob" "scripts_js" {
-  name                   = "script.js"
-  storage_account_name   = azurerm_storage_account.storage.name
-  storage_container_name = "$web"
-  type                   = "Block"
-  content_type           = "application/javascript"
-  source                 = "website/script.js"
-
-  depends_on = [azurerm_storage_account_static_website.website]
+  name                 = "script.js"
+  storage_container_id = data.azurerm_storage_container.web.id
+  type                 = "Block"
+  content_type         = "application/javascript"
+  source               = "website/script.js"
 }
 
 resource "azurerm_storage_blob" "assets" {
   for_each = fileset("website/assets", "**/*")
 
-  name                   = "assets/${each.value}"
-  storage_account_name   = azurerm_storage_account.storage.name
-  storage_container_name = "$web"
-  type                   = "Block"
+  name                 = "assets/${each.value}"
+  storage_container_id = data.azurerm_storage_container.web.id
+  type                 = "Block"
   content_type = lookup(
     {
       "png"  = "image/png"
@@ -172,8 +169,6 @@ resource "azurerm_storage_blob" "assets" {
     "application/octet-stream"
   )
   source = "website/assets/${each.value}"
-
-  depends_on = [azurerm_storage_account_static_website.website]
 }
 
 resource "aws_route53_zone" "main" {
