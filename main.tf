@@ -43,23 +43,23 @@ resource "aws_s3_bucket_public_access_block" "public_access" {
 
 # Upload website files to the S3 bucket
 resource "aws_s3_object" "website_index" {
-  bucket = aws_s3_bucket.weather_app.id
-  key    = "index.html"
-  source = "website/index.html"
+  bucket       = aws_s3_bucket.weather_app.id
+  key          = "index.html"
+  source       = "website/index.html"
   content_type = "text/html"
 }
 
 resource "aws_s3_object" "website_style" {
-  bucket = aws_s3_bucket.weather_app.id
-  key    = "styles.css"
-  source = "website/styles.css"
+  bucket       = aws_s3_bucket.weather_app.id
+  key          = "styles.css"
+  source       = "website/styles.css"
   content_type = "text/css"
 }
 
 resource "aws_s3_object" "website_script" {
-  bucket = aws_s3_bucket.weather_app.id
-  key    = "script.js"
-  source = "website/script.js"
+  bucket       = aws_s3_bucket.weather_app.id
+  key          = "script.js"
+  source       = "website/script.js"
   content_type = "application/javascript"
 }
 
@@ -85,13 +85,13 @@ resource "aws_s3_bucket_policy" "bucket_policy" {
         Resource  = "arn:aws:s3:::${aws_s3_bucket.weather_app.id}/*"
       },
       {
-        Sid       = "CloudFrontLogsWrite",
-        Effect    = "Allow",
+        Sid    = "CloudFrontLogsWrite",
+        Effect = "Allow",
         Principal = {
           Service = "cloudfront.amazonaws.com"
         },
-        Action    = "s3:PutObject",
-        Resource  = "arn:aws:s3:::${aws_s3_bucket.weather_app.id}/cloudfront-logs/*"
+        Action   = "s3:PutObject",
+        Resource = "arn:aws:s3:::${aws_s3_bucket.weather_app.id}/cloudfront-logs/*"
       }
     ]
   })
@@ -103,9 +103,9 @@ resource "azurerm_resource_group" "rg" {
 }
 
 resource "azurerm_storage_account" "storage" {
-  name                     = "myaccounttostorageweb"
-  resource_group_name      = azurerm_resource_group.rg.name
-  location                 = azurerm_resource_group.rg.location
+  name                = "myaccounttostorageweb"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   account_tier             = "Standard"
   account_replication_type = "LRS"
@@ -115,7 +115,7 @@ resource "azurerm_storage_account" "storage" {
 resource "azurerm_storage_account_static_website" "website" {
   storage_account_id = azurerm_storage_account.storage.id
 
-  index_document = "index.html"
+  index_document     = "index.html"
   error_404_document = "error.html"
 }
 
@@ -159,7 +159,7 @@ resource "azurerm_storage_blob" "assets" {
   storage_account_name   = azurerm_storage_account.storage.name
   storage_container_name = "$web"
   type                   = "Block"
-  content_type           = lookup(
+  content_type = lookup(
     {
       "png"  = "image/png"
       "jpg"  = "image/jpeg"
@@ -203,7 +203,7 @@ resource "aws_route53_record" "primary" {
 
   alias {
     name                   = "distribution-cloud.flog.br"
-    zone_id                = "Z0047040XW8P8MS7S80T"  # CloudFront's hosted zone ID
+    zone_id                = "Z0047040XW8P8MS7S80T" # CloudFront's hosted zone ID
     evaluate_target_health = true
   }
 
@@ -211,7 +211,7 @@ resource "aws_route53_record" "primary" {
     type = "PRIMARY"
   }
 
-  set_identifier = "primary"
+  set_identifier  = "primary"
   health_check_id = aws_route53_health_check.aws_health_check.id
 }
 
@@ -228,6 +228,6 @@ resource "aws_route53_record" "secondary" {
     type = "SECONDARY"
   }
 
-  set_identifier = "secondary"
+  set_identifier  = "secondary"
   health_check_id = aws_route53_health_check.azure_health_check.id
 }
