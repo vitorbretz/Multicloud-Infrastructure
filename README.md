@@ -76,167 +76,94 @@ Multicloud-Infrastructure/
 
 ### Pré-requisitos
 - [Terraform](https://www.terraform.io/downloads) >= 1.0
-- Credenciais AWS (Access Key & Secret Key)
-- Credenciais Azure (Client ID, Secret, Subscription ID, Tenant ID)
+- Credenciais AWS e Azure
 - Git
 
-### 1. Clone o Repositório
+### 1. Clone e Configure
+
 ```bash
 git clone <repository-url>
 cd Multicloud-Infrastructure
 ```
 
-### 2. Configure as Credenciais
+### 2. Credenciais
 
-#### AWS Credentials (`aws_credentials.tfvars`)
+Crie `aws_credentials.tfvars`:
 ```hcl
-aws_access_key = "your-aws-access-key"
-aws_secret_key = "your-aws-secret-key"
+aws_access_key = "your-access-key"
+aws_secret_key = "your-secret-key"
 ```
 
-#### Azure Credentials (`azure_credentials.tfvars`)
+Crie `azure_credentials.tfvars`:
 ```hcl
-azure_client_id       = "your-azure-client-id"
-azure_client_secret   = "your-azure-client-secret"
-azure_subscription_id = "your-azure-subscription-id"
-azure_tenant_id       = "your-azure-tenant-id"
+azure_client_id       = "your-client-id"
+azure_client_secret   = "your-client-secret"
+azure_subscription_id = "your-subscription-id"
+azure_tenant_id       = "your-tenant-id"
 ```
 
-### 3. Terraform Workflow
+### 3. Deploy
 
 ```bash
-# Inicializa Terraform (primeiro setup)
+# Inicializar
 terraform init
 
-# Valida a configuração
+# Validar
 terraform validate
 
-# Plano de execução (o que será criado)
+# Preview
 terraform plan -var-file="aws_credentials.tfvars" -var-file="azure_credentials.tfvars"
 
-# Aplicar a infraestrutura
+# Deploy
 terraform apply -var-file="aws_credentials.tfvars" -var-file="azure_credentials.tfvars"
 
-# Remover a infraestrutura (CUIDADO!)
+# Destruir (cuidado!)
 terraform destroy -var-file="aws_credentials.tfvars" -var-file="azure_credentials.tfvars"
 ```
 
----
-
-## 📊 Variáveis Terraform
-
-| Variável | Origem | Descrição |
-|----------|--------|-----------|
-| `aws_access_key` | AWS Credentials | Access Key da conta AWS |
-| `aws_secret_key` | AWS Credentials | Secret Key da conta AWS |
-| `azure_client_id` | Azure Credentials | Client ID da aplicação Azure |
-| `azure_client_secret` | Azure Credentials | Client Secret da aplicação Azure |
-| `azure_subscription_id` | Azure Credentials | ID da subscription Azure |
-| `azure_tenant_id` | Azure Credentials | Tenant ID do Azure AD |
-
----
-
 ## 🔒 Segurança
 
-### ⚠️ Credenciais
-- **Nunca** commite arquivos `*_credentials.tfvars` no repositório
-- Adicione aos `.gitignore`:
-  ```
-  aws_credentials.tfvars
-  azure_credentials.tfvars
-  terraform.tfstate
-  terraform.tfstate.backup
-  ```
-- Use variáveis de ambiente ou AWS/Azure CLI para credenciais
+**Importante**: Adicione ao `.gitignore`:
+```
+aws_credentials.tfvars
+azure_credentials.tfvars
+terraform.tfstate*
+.terraform/
+```
 
-### Política de Acesso S3 (AWS)
-- Apenas leitura pública (`s3:GetObject`)
-- CloudFront pode escrever logs
-- Bucket lifecycle protection ativado
-
----
+- S3: Apenas leitura pública para objetos (`s3:GetObject`)
+- Proteção contra destruição acidental ativada
+- Use variáveis de ambiente ou secret managers em produção
 
 ## 🌍 URLs de Acesso
 
-Após o deployment com sucesso:
-
-### AWS S3 Website
-```
-http://multicloud-weather-app-vitor-2026.s3-website-us-east-1.amazonaws.com
-```
-
-### Azure Static Website
-```
-https://myaccounttostorageweb.z13.web.core.windows.net/
-```
-
----
-
-## 🔄 Deployment Multicloud
-
-Esta arquitetura permite:
-
-✅ **Redundância**: Mesma app em dois provedores  
-✅ **Resiliência**: Falha de um não afeta o outro  
-✅ **Escalabilidade**: Expandir em qualquer cloud  
-✅ **Failover**: Mudar DNS/CDN se um falhar  
-✅ **Testing**: Validar em múltiplas plataformas  
-
----
+**AWS S3**: `http://multicloud-weather-app-vitor-2026.s3-website-us-east-1.amazonaws.com`  
+**Azure Storage**: `https://myaccounttostorageweb.z13.web.core.windows.net/`
 
 ## 📈 Próximos Passos
 
-- [ ] Adicionar CloudFront CDN em frente ao S3
-- [ ] Implementar Azure CDN
-- [ ] Adicionar CI/CD pipeline (GitHub Actions)
-- [ ] Implementar monitoramento (CloudWatch + Azure Monitor)
-- [ ] Adicionar domínio customizado com Route53 + Azure DNS
-- [ ] Configurar SSL/TLS certificates
-- [ ] Integrar API meteorológica
-- [ ] Adicionar backend serverless (Lambda + Azure Functions)
-
----
-
-## 📝 Logs e Estado
-
-- **terraform.tfstate**: Estado atual gerenciado pelo Terraform
-- **terraform.tfstate.backup**: Backup automático anterior
-- Considere usar remote state (S3 backend para AWS ou Azure Storage para Azure)
-
----
+- [ ] CloudFront CDN (AWS) e Azure CDN
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Monitoramento (CloudWatch + Azure Monitor)
+- [ ] Domínio customizado + SSL/TLS
+- [ ] Backend serverless (Lambda + Azure Functions)
+- [ ] Remote state backend (S3 + DynamoDB ou Azure Storage)
 
 ## 🐛 Troubleshooting
 
-### Erro: "Access Denied" no S3
-- Verifique se a bucket policy está corretamente aplicada
-- Confirme que `block_public_acls = false` e `restrict_public_buckets = false`
+**S3 Access Denied**: Verifique bucket policy e public access settings (`block_public_acls = false`)
 
-### Erro: Arquivo não encontrado ao upload
-- Certifique-se que os arquivos estão em `website/` relativo ao diretório Terraform
-- Execute Terraform do diretório raiz do projeto
+**Arquivo não encontrado**: Execute terraform do diretório raiz; confirme estrutura `website/`
 
-### Erro: Azure Static Website not accessible
-- Confirme que a storage account static website está habilitada
-- Verifique se os arquivos estão no container `$web`
-
----
+**Azure não acessível**: Verifique static website habilitado e arquivos no container `$web`
 
 ## 📚 Referências
 
-- [AWS S3 Static Website Hosting](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html)
-- [Azure Static Website Hosting](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-static-website)
+- [AWS S3 Static Website](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html)
+- [Azure Static Website](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-static-website)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 
 ---
 
-## 📄 Licença
-
-Este projeto é fornecido como exemplo educacional.
-
----
-
-## 👤 Autor
-
-Vitor - Multicloud Infrastructure Demo  
-Data: 2026-07-22
+**Autor**: Vitor | **Data**: 2026-07-22

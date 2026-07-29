@@ -122,10 +122,12 @@ resource "azurerm_storage_account_static_website" "website" {
 resource "azurerm_storage_blob" "index_html" {
   name                   = "index.html"
   storage_account_name   = azurerm_storage_account.storage.name
-  storage_container_name = "$web"  # Static website container
+  storage_container_name = "$web"
   type                   = "Block"
   content_type           = "text/html"
-  source                 = "website/index.html"  # Path to local file
+  source                 = "website/index.html"
+
+  depends_on = [azurerm_storage_account_static_website.website]
 }
 
 resource "azurerm_storage_blob" "styles_css" {
@@ -134,7 +136,9 @@ resource "azurerm_storage_blob" "styles_css" {
   storage_container_name = "$web"
   type                   = "Block"
   content_type           = "text/css"
-  source                 = "website/styles.css"  # Path to local file
+  source                 = "website/styles.css"
+
+  depends_on = [azurerm_storage_account_static_website.website]
 }
 
 resource "azurerm_storage_blob" "scripts_js" {
@@ -143,7 +147,9 @@ resource "azurerm_storage_blob" "scripts_js" {
   storage_container_name = "$web"
   type                   = "Block"
   content_type           = "application/javascript"
-  source                 = "website/script.js"  # Path to local file
+  source                 = "website/script.js"
+
+  depends_on = [azurerm_storage_account_static_website.website]
 }
 
 resource "azurerm_storage_blob" "assets" {
@@ -160,11 +166,14 @@ resource "azurerm_storage_blob" "assets" {
       "jpeg" = "image/jpeg"
       "gif"  = "image/gif"
       "svg"  = "image/svg+xml"
+      "ico"  = "image/x-icon"
     },
     split(".", each.value)[length(split(".", each.value)) - 1],
     "application/octet-stream"
   )
-  source = "website/assets/${each.value}"  # Path to local assets
+  source = "website/assets/${each.value}"
+
+  depends_on = [azurerm_storage_account_static_website.website]
 }
 
 resource "aws_route53_zone" "main" {
@@ -191,17 +200,17 @@ resource "aws_route53_record" "primary" {
   zone_id = aws_route53_zone.main.zone_id
   name    = "cloud.flog.br"
   type    = "A"
-​
+
   alias {
     name                   = "distribution-cloud.flog.br"
     zone_id                = "Z0047040XW8P8MS7S80T"  # CloudFront's hosted zone ID
     evaluate_target_health = true
   }
-​
+
   failover_routing_policy {
     type = "PRIMARY"
   }
-​
+
   set_identifier = "primary"
   health_check_id = aws_route53_health_check.aws_health_check.id
 }
@@ -210,16 +219,15 @@ resource "aws_route53_record" "secondary" {
   zone_id = aws_route53_zone.main.zone_id
   name    = "cloud.flog.br"
   type    = "CNAME"
-​
+
   records = ["myaccounttostorageweb.z13.web.core.windows.net"]
-​
+
   ttl = 300
-​
+
   failover_routing_policy {
     type = "SECONDARY"
   }
-​
+
   set_identifier = "secondary"
   health_check_id = aws_route53_health_check.azure_health_check.id
 }
-​
