@@ -1,104 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Merriweather+Sans:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudCast — Premium Weather Intelligence</title>
+  <meta name="description" content="CloudCast delivers fast, beautiful weather forecasts with a premium interface, instant search, and adaptive motion." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    
-    <div class="wrapper">
-
-        <h1>Weather App</h1>
-
-        <div class="tab-container">
-            <p class="tab" data-userWeather>Your Weather</p>
-            <p class="tab" data-searchWeather>Search Weather</p>
-        </div>
-
-        <div class="weather-container">
-
-            <!-- grant location container-->
-            <div class="sub-container grant-location-container">
-                <img src="./assets/location.png" width="80" height="80" loading="lazy">
-                <p>Grant Location Access</p>
-                <p>Allow Access to get weather Information</p>
-                <button class="btn" data-grantAccess>Grant Access</button>
-            </div>
-
-            <!-- search form -> form-container-->
-            <form class="form-container" data-searchForm>
-                <input placeholder="Search for City..." data-searchInput>
-                <button class="btn" type="submit">
-                    <img src="./assets/search.png"  width="20" height="20" loading="lazy">
-                </button>
-            </form>
-
-            <!--- loading screen container -->
-            <div class="sub-container loading-container">
-                <img src="./assets/loading.gif" width="150" height="150">
-                <p>Loading</p>
-            </div>
-
-            <!-- show weather info -->
-            <div class="sub-container user-info-container">
-
-                <!--city name and Flag-->
-                <div class="name">
-                    <p data-cityName></p>
-                    <img data-countryIcon>
-                </div>
-
-                <!-- weather descriptuion-->
-                <p data-weatherDesc></p>
-                <!--weather Icon-->
-                <img data-weatherIcon>
-                <!--temperature-->
-                <p data-temp></p>
-
-                <!--3 cards - parameters-->
-                <div class="parameter-container">
-
-                    <!--card 1-->
-                    <div class="parameter">
-                        <img src="./assets/wind.png" >
-                        <p>windspeed</p>
-                        <p data-windspeed></p>
-                    </div>
-
-                    <!--card 2-->
-                    <div class="parameter">
-                        <img src="./assets/humidity.png" >
-                        <p>humidity</p>
-                        <p data-humidity></p>
-                    </div>
-
-                    <!--card 3-->
-                    <div class="parameter">
-                        <img src="./assets/cloud.png" >
-                        <p>Clouds</p>
-                        <p data-cloudiness></p>
-                    </div>
-
-                </div>
-
-
-            </div>
-
-
-
-        </div>
-
-
+  <div class="page-shell">
+    <div class="background-layers" aria-hidden="true">
+      <div class="bg-glow glow-1"></div>
+      <div class="bg-glow glow-2"></div>
+      <div class="bg-stripe"></div>
     </div>
 
+    <header class="site-header">
+      <a class="brand" href="#">CloudCast</a>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="#features">Features</a>
+        <a href="#insights">Insights</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="nav-cta" href="#weather-panel">Open app</a>
+    </header>
 
-    <script src="script.js"></script>
+    <main>
+      <section class="hero-section">
+        <div class="hero-copy fade-up">
+          <div class="hero-copy-content">
+            <span class="hero-badge">Premium weather intelligence</span>
+            <h1>Forecast clarity for every decision.</h1>
+            <p>CloudCast combines fast local forecasts, smooth interactions, and elegant design so you always know what to expect.</p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#weather-panel">Check weather</a>
+              <a class="button button-secondary" href="#features">Explore features</a>
+            </div>
+            <div class="hero-metrics">
+              <div class="metric-card">
+                <strong>99.98%</strong>
+                <span>uptime</span>
+              </div>
+              <div class="metric-card">
+                <strong>35ms</strong>
+                <span>average load</span>
+              </div>
+              <div class="metric-card">
+                <strong>27+</strong>
+                <span>weather sources</span>
+              </div>
+            </div>
+          </div>
+          <div class="hero-copy-side">
+            <div class="loading-panel" data-loading-panel role="status" aria-live="polite">
+              <img src="./assets/loading.gif" alt="Loading weather" width="180" height="180" loading="lazy" />
+            </div>
+          </div>
+        </div>
+
+        <aside class="hero-panel fade-up" id="weather-panel">
+          <div class="panel-top">
+            <div>
+              <p class="panel-label">Weather dashboard</p>
+              <h2>Instant global forecasts</h2>
+            </div>
+            <div class="status-pill">Live</div>
+          </div>
+
+          <div class="weather-actions-header">
+            <h3>Search or use your location</h3>
+            <p>Either allow location access or type a city name to get your forecast quickly.</p>
+          </div>
+
+          <div class="action-grid">
+            <div class="weather-card grant-location-card active" data-grant-panel>
+              <div class="card-icon">
+                <img src="./assets/location.png" alt="Location icon" width="28" height="28" loading="lazy" />
+              </div>
+              <div>
+                <h3>Unlock local weather</h3>
+                <p>Allow geolocation to display precise current conditions instantly.</p>
+              </div>
+              <button class="button button-secondary small" data-grant-access type="button">Grant access</button>
+            </div>
+
+            <form class="search-panel" data-search-form novalidate>
+              <label class="search-label" for="searchInput">Search cities instantly</label>
+              <div class="search-field">
+                <input id="searchInput" name="city" type="search" placeholder="Enter a city name" data-search-input autocomplete="off" />
+                <button class="search-button" type="submit" aria-label="Search city">
+                  <img src="./assets/search.png" alt="Search icon" width="18" height="18" loading="lazy" />
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="weather-panel-body">
+            <article class="weather-info active" data-weather-panel aria-live="polite">
+              <div class="location-row">
+                <div>
+                  <span class="location-label">Current location</span>
+                  <h3 data-city-name>Loading…</h3>
+                </div>
+                <img data-country-icon alt="Country flag" width="38" height="28" loading="lazy" />
+              </div>
+
+              <div class="weather-main">
+                <div class="weather-icon">
+                  <img data-weather-icon alt="Weather icon" width="120" height="120" loading="lazy" />
+                </div>
+                <div class="weather-summary">
+                  <p data-weather-desc>Clear skies and calm.</p>
+                  <p class="weather-temp" data-temp>18°C</p>
+                </div>
+              </div>
+
+              <div class="weather-grid">
+                <div class="stat-card">
+                  <span class="stat-label">Wind</span>
+                  <strong data-windspeed>0 m/s</strong>
+                  <img src="./assets/wind.png" alt="Wind icon" width="24" height="24" loading="lazy" />
+                </div>
+                <div class="stat-card">
+                  <span class="stat-label">Humidity</span>
+                  <strong data-humidity>0%</strong>
+                  <img src="./assets/humidity.png" alt="Humidity icon" width="24" height="24" loading="lazy" />
+                </div>
+                <div class="stat-card">
+                  <span class="stat-label">Cloud cover</span>
+                  <strong data-cloudiness>0%</strong>
+                  <img src="./assets/cloud.png" alt="Cloud icon" width="24" height="24" loading="lazy" />
+                </div>
+              </div>
+            </article>
+
+            <div class="error-panel" data-error-panel aria-live="assertive"></div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <p>© 2026 CloudCast. Built for elegant weather intelligence.</p>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.488.0/dist/umd/lucide.min.js"></script>
+  <script>
+    if (window.lucide) {
+      if (typeof window.lucide.replace === 'function') {
+        window.lucide.replace();
+      } else if (typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    }
+  </script>
+  <script src="script.js"></script>
 </body>
 </html>
+
+      
