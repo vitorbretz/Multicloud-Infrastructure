@@ -1,119 +1,53 @@
 # Multicloud Infrastructure - Weather App
 
-Uma arquitetura de infraestrutura multicloud que hospeda uma aplicação Weather App simultaneamente em **AWS** e **Azure** usando **Terraform** para provisioning e gerenciamento.
-
----
+Infraestrutura multicloud deployando uma Weather App simultaneamente em **AWS S3** e **Azure Storage** usando **Terraform** para garantir redundância e alta disponibilidade.
 
 ## 📋 Visão Geral
 
-Este projeto demonstra um padrão enterprise de infraestrutura multicloud, deployando a mesma aplicação em múltiplos provedores de nuvem para garantir redundância, resiliência e escalabilidade. A aplicação Weather App é uma single-page application (SPA) que fornece informações meteorológicas em tempo real.
+Weather App estática hospedada em dois provedores cloud, demonstrando padrões de resiliência enterprise. A aplicação fornece informações meteorológicas em tempo real através de uma interface web responsiva.
 
-### Arquitetura Multicloud
+## 🏗️ Arquitetura
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Terraform State Management                     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-    ┌───────────────┐   ┌──────────────┐   ┌────────────────┐
-    │    AWS        │   │   Azure      │   │   Credentials  │
-    │  (us-east-1)  │   │  (East US)   │   │   Variables    │
-    └───────────────┘   └──────────────┘   └────────────────┘
-        │                     │
-    ┌───────────────┐   ┌──────────────┐
-    │  S3 Bucket    │   │Storage       │
-    │  + Website    │   │Account       │
-    │  Config       │   │+ Static Site │
-    │  + IAM Policy │   │+ $web        │
-    │  + Assets     │   │Container     │
-    └───────────────┘   └──────────────┘
-        │                     │
-    ┌───────────────────────────────────┐
-    │     Weather App (Estática)        │
-    │  - index.html                     │
-    │  - styles.css                     │
-    │  - script.js                      │
-    │  - assets/                        │
-    └───────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│        Terraform State Management        │
+└─────────────────┬───────────────────────┘
+        ┌─────────┴─────────┐
+    ┌───────────┐       ┌───────────┐
+    │    AWS    │       │   Azure   │
+    │ us-east-1 │       │  East US  │
+    └─────┬─────┘       └─────┬─────┘
+          │                   │
+    S3 + Website      Storage + $web
+    Public Access     Static Hosting
+          │                   │
+        └─────────┬───────────┘
+            Weather App
+         (HTML/CSS/JS + Assets)
 ```
 
----
+## 🌐 Componentes
 
-## 🏗️ Componentes da Infraestrutura
+### AWS
+- **S3 Bucket**: `multicloud-weather-app-vitor-2026`
+  - Static website hosting habilitado
+  - Public read access para objetos
+  - Lifecycle protection ativado
+- **Bucket Policy**: Leitura pública + CloudFront logs
 
-### AWS Cloud
+### Azure
+- **Resource Group**: `rg-static-website` (East US)
+- **Storage Account**: `myaccounttostorageweb` (StorageV2, LRS)
+- **Static Website**: Container `$web` com index.html
 
-#### S3 Bucket (`multicloud-weather-app-vitor-2026`)
-- **Propósito**: Hospedagem de website estático
-- **Configurações**:
-  - Website configuration com `index.html` como documento raiz
-  - Public access habilitado para leitura de objetos
-  - Protect against destroy ativado (lifecycle policy)
-  - CloudFront logs habilitados
-
-#### Bucket Policy
-- Permite acesso público apenas para leitura (`s3:GetObject`)
-- Autoriza CloudFront a escrever logs
-- Statement: `PublicReadGetObject` e `CloudFrontLogsWrite`
-
-#### Upload de Assets
-- **index.html**: Página principal (text/html)
-- **styles.css**: Folha de estilos (text/css)
-- **script.js**: Lógica da aplicação (application/javascript)
-- **assets/**: Pasta com imagens e recursos estáticos
-
----
-
-### Azure Cloud
-
-#### Resource Group (`rg-static-website`)
-- **Localização**: East US
-- **Propósito**: Organizar e gerenciar todos os recursos Azure
-
-#### Storage Account (`myaccounttostorageweb`)
-- **Tipo**: StorageV2 (Standard)
-- **Replicação**: LRS (Locally Redundant Storage)
-- **Tier**: Standard
-
-#### Static Website Hosting
-- Habilitado na storage account
-- Container $web para arquivos estáticos
-- **Documentos**:
-  - Index: `index.html`
-  - Error 404: `error.html`
-
-#### Upload de Arquivos
-- **index.html**: text/html
-- **styles.css**: text/css
-- **script.js**: application/javascript
-- **assets/**: Mapeamento dinâmico com detecção automática de content-type:
-  - PNG → image/png
-  - JPG/JPEG → image/jpeg
-  - GIF → image/gif
-  - SVG → image/svg+xml
-
----
-
-## 🌐 Aplicação - Weather App
-
-Uma aplicação web interativa que fornece informações meteorológicas.
-
-### Funcionalidades
-- ✅ Acesso à localização do usuário via Geolocation API
-- ✅ Busca de clima por cidade
-- ✅ Interface com abas (Seu Clima / Buscar Clima)
-- ✅ Loading indicator durante requisições
-- ✅ Design responsivo com Merriweather Sans font
-- ✅ Icones e assets visuais
-
-### Tecnologias
+### Weather App
 - **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Design**: Fonte Google (Merriweather Sans)
-- **Imagens**: PNG, GIF (carregamento lazy)
-
----
+- **Features**:
+  - Geolocation API para clima local
+  - Busca por cidade
+  - Interface com abas
+  - Design responsivo (Merriweather Sans)
+  - Loading indicators
 
 ## 📁 Estrutura do Projeto
 
