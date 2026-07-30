@@ -110,6 +110,16 @@ resource "azurerm_storage_account" "storage" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
+
+  blob_properties {
+    cors_rule {
+      allowed_headers    = ["*"]
+      allowed_methods    = ["GET", "HEAD", "OPTIONS"]
+      allowed_origins    = ["*"]
+      exposed_headers    = ["*"]
+      max_age_in_seconds = 3600
+    }
+  }
 }
 
 resource "azurerm_storage_account_static_website" "website" {
@@ -141,7 +151,7 @@ resource "azurerm_storage_blob" "styles_css" {
   type                 = "Block"
   content_type         = "text/css"
   source               = "website/styles.css"
-  cache_control        = "no-cache, no-store, must-revalidate"
+  cache_control        = "public, max-age=3600"
 }
 
 resource "azurerm_storage_blob" "scripts_js" {
@@ -150,7 +160,7 @@ resource "azurerm_storage_blob" "scripts_js" {
   type                 = "Block"
   content_type         = "application/javascript"
   source               = "website/script.js"
-  cache_control        = "no-cache, no-store, must-revalidate"
+  cache_control        = "public, max-age=3600"
 }
 
 resource "azurerm_storage_blob" "assets" {
