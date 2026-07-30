@@ -132,6 +132,7 @@ resource "azurerm_storage_blob" "index_html" {
   type                 = "Block"
   content_type         = "text/html"
   source               = "website/index.html"
+  cache_control        = "no-cache, no-store, must-revalidate"
 }
 
 resource "azurerm_storage_blob" "styles_css" {
@@ -140,6 +141,7 @@ resource "azurerm_storage_blob" "styles_css" {
   type                 = "Block"
   content_type         = "text/css"
   source               = "website/styles.css"
+  cache_control        = "no-cache, no-store, must-revalidate"
 }
 
 resource "azurerm_storage_blob" "scripts_js" {
@@ -148,6 +150,7 @@ resource "azurerm_storage_blob" "scripts_js" {
   type                 = "Block"
   content_type         = "application/javascript"
   source               = "website/script.js"
+  cache_control        = "no-cache, no-store, must-revalidate"
 }
 
 resource "azurerm_storage_blob" "assets" {
@@ -177,10 +180,11 @@ resource "aws_route53_zone" "main" {
 
 resource "aws_route53_health_check" "aws_health_check" {
   type              = "HTTPS"
-  fqdn              = "distribution-cloud.flog.br"
+  fqdn              = "d32ri76eiboi37.cloudfront.net"
   port              = 443
   request_interval  = 30
   failure_threshold = 3
+  resource_path     = "/"
 }
 
 resource "aws_route53_health_check" "azure_health_check" {
@@ -197,8 +201,8 @@ resource "aws_route53_record" "primary" {
   type    = "A"
 
   alias {
-    name                   = "distribution-cloud.flog.br"
-    zone_id                = "Z0047040XW8P8MS7S80T" # CloudFront's hosted zone ID
+    name                   = "d32ri76eiboi37.cloudfront.net"
+    zone_id                = "Z2FDTNDATAQYW2"  # CloudFront global zone ID
     evaluate_target_health = true
   }
 
@@ -212,7 +216,7 @@ resource "aws_route53_record" "primary" {
 
 resource "aws_route53_record" "secondary" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "cloud.flog.br"
+  name    = "www.cloud.flog.br"  # Usando subdomínio para CNAME
   type    = "CNAME"
 
   records = ["myaccounttostorageweb.z13.web.core.windows.net"]
