@@ -1,1 +1,1 @@
-terraform/shared/locals.tf
+shared/locals.tf

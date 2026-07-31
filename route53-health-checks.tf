@@ -1,1 +1,1 @@
-terraform/aws/route53-health-checks.tf
+aws/route53-health-checks.tf

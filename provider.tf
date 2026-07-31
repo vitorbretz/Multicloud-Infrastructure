@@ -1,1 +1,1 @@
-terraform/shared/provider.tf
+shared/provider.tf

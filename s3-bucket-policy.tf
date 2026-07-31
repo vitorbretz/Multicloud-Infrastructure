@@ -1,1 +1,1 @@
-terraform/aws/s3-bucket-policy.tf
+aws/s3-bucket-policy.tf

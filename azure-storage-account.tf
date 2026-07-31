@@ -1,1 +1,1 @@
-terraform/azure/azure-storage-account.tf
+azure/azure-storage-account.tf

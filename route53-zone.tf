@@ -1,1 +1,1 @@
-terraform/aws/route53-zone.tf
+aws/route53-zone.tf

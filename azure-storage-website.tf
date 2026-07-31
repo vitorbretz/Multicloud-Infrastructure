@@ -1,1 +1,1 @@
-terraform/azure/azure-storage-website.tf
+azure/azure-storage-website.tf

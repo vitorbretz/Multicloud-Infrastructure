@@ -4,7 +4,6 @@
 
 Este documento descreve a configuração de failover automático entre AWS CloudFront (primário) e Azure Storage (secundário) para alta disponibilidade do site.
 
-## ✅ Configuração Atual (Conforme Tutorial)
 
 ### PRIMARY (cloud.flog.br)
 - **Target**: CloudFront Distribution (`d32ri76eiboi37.cloudfront.net`)
@@ -33,18 +32,28 @@ Este documento descreve a configuração de failover automático entre AWS Cloud
 
 ## 🧪 Testando o Failover
 
-### ⚠️ IMPORTANTE: Nota do Tutorial
+### ⚠️ IMPORTANTE: 
 
-**O aviso "Not Secure" ao acessar www.cloud.flog.br durante o failover é NORMAL e ESPERADO.**
+**Azure Storage Static Website Limitation com Domínio Customizado**
 
-**Por quê?**
-- Azure Blob Storage static websites **NÃO suportam HTTPS** com domínios customizados por padrão
-- O mecanismo de disaster recovery está funcionando corretamente mesmo com o aviso HTTP
-- O site permanece funcional durante o failover, apesar do aviso "Not Secure"
+**Problema conhecido:**
+- Azure Storage **NÃO aceita** domínios customizados (CNAME) sem Azure CDN
+- Ao tentar acessar `www.cloud.flog.br` → Azure retorna **HTTP 400: "The request URI is invalid"**
+- Isso acontece porque Azure Storage rejeita requisições com Host header customizado
+
+**Comportamento durante failover:**
+- Route53 detecta falha no PRIMARY e ativa SECONDARY
+- DNS resolve `www.cloud.flog.br` → `myaccounttostorageweb.z13.web.core.windows.net`
+- Usuários que tentarem acessar via CNAME verão erro HTTP 400
+- **SOLUÇÃO**: Acessar diretamente via domínio nativo do Azure
+
+**Acesso correto durante failover:**
+- ✅ `https://myaccounttostorageweb.z13.web.core.windows.net/` (domínio nativo)
+- ❌ `https://www.cloud.flog.br/` (CNAME - não funciona)
 
 **Para Produção:**
-- Seria necessário configurar Azure CDN para habilitar HTTPS
-- Isso está além do escopo deste tutorial
+- Implementar Azure CDN para suporte completo a domínios customizados
+- Ou usar apenas failover AWS (CloudFront → CloudFront em outra região)
 
 ---
 
@@ -84,11 +93,15 @@ aws cloudfront create-invalidation \
 # Testar PRIMARY (deve retornar 403 Forbidden)
 curl -I https://cloud.flog.br/
 
-# Verificar DNS do SECONDARY
+# Verificar DNS do SECONDARY (funcionará)
 dig www.cloud.flog.br +short
 # Deve retornar: myaccounttostorageweb.z13.web.core.windows.net
 
-# Testar SECONDARY via domínio nativo do Azure
+# ❌ Testar SECONDARY via CNAME (retornará HTTP 400)
+curl -I https://www.cloud.flog.br/
+# Esperado: HTTP 400 "The request URI is invalid"
+
+# ✅ Testar SECONDARY via domínio nativo do Azure (funcionará)
 curl -I https://myaccounttostorageweb.z13.web.core.windows.net/
 # Deve retornar: 200 OK
 ```
@@ -97,18 +110,18 @@ curl -I https://myaccounttostorageweb.z13.web.core.windows.net/
 
 **✅ Comportamento Esperado:**
 - `cloud.flog.br` → Retorna erro 403 (S3 bloqueado)
-- `www.cloud.flog.br` → Resolve para Azure Storage
-- Site funciona via domínio nativo do Azure
-- **Aviso "Not Secure"**: NORMAL - Azure não suporta HTTPS com CNAME customizado
+- `www.cloud.flog.br` → DNS resolve para Azure Storage ✅
+- `www.cloud.flog.br` → HTTP 400 ao acessar (limitação do Azure) ❌
+- Acesso via domínio nativo do Azure → HTTP 200 ✅
 
-**⚠️ Limitação do Azure:**
+**⚠️ Limitação do Azure Storage:**
 Ao tentar acessar `https://www.cloud.flog.br/` você verá:
-- Erro de certificado SSL (esperado)
-- Ou aviso "Not Secure" no navegador
+- **HTTP 400: "The request URI is invalid"**
+- Isso é uma limitação do Azure Storage com domínios customizados
 
-**Solução de Contorno:**
-- Acessar via domínio nativo: `https://myaccounttostorageweb.z13.web.core.windows.net/`
-- Ou aceitar o aviso de segurança (apenas para testes)
+**✅ Solução durante failover:**
+- Informar usuários para acessar: `https://myaccounttostorageweb.z13.web.core.windows.net/`
+- Ou implementar Azure CDN para suporte completo
 
 #### Passo 6: Restaurar Acesso Normal
 

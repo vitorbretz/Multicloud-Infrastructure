@@ -1,1 +1,1 @@
-terraform/azure/azure-storage-blobs.tf
+azure/azure-storage-blobs.tf

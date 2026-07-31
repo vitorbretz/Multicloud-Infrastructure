@@ -54,7 +54,7 @@ variable "aws_s3_website" {
     prevent_destroy = optional(bool, true)
   })
   default = {
-    bucket_name = "multicloud-weather-app-vitor-2026"
+    bucket_name = "cloudcast-weather-vitor-prod-2026"
     website = {
       index_document = "index.html"
       error_document = "error.html"

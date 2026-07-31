@@ -1,1 +1,1 @@
-terraform/aws/s3-objects.tf
+aws/s3-objects.tf

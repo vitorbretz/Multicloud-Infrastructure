@@ -1,1 +1,1 @@
-terraform/shared/data.tf
+shared/data.tf

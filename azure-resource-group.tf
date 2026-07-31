@@ -1,1 +1,1 @@
-terraform/azure/azure-resource-group.tf
+azure/azure-resource-group.tf

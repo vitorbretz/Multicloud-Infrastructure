@@ -1,1 +1,1 @@
-terraform/azure/azure-front-door.tf
+azure/azure-front-door.tf

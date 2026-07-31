@@ -1,1 +1,1 @@
-terraform/shared/outputs.tf
+shared/outputs.tf

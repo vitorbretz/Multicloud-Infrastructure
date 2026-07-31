@@ -1,1 +1,1 @@
-terraform/aws/s3-bucket.tf
+aws/s3-bucket.tf

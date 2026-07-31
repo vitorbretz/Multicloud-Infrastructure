@@ -1,1 +1,1 @@
-terraform/aws/route53-records.tf
+aws/route53-records.tf
