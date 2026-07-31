@@ -68,46 +68,69 @@ cloud.flog.br → Route53 Health Checks
 
 ```
 .
-├── aws/                         # AWS Infrastructure
-│   ├── route53-zone.tf          # DNS zone
-│   ├── route53-records.tf       # DNS records with failover
-│   ├── route53-health-checks.tf # Health monitoring
-│   ├── s3-bucket.tf             # S3 bucket
-│   ├── s3-bucket-policy.tf      # S3 permissions
-│   ├── s3-bucket-website.tf     # S3 static website config
-│   └── s3-objects.tf            # Website file uploads
+├── 🟠 AWS Infrastructure Files
+│   ├── route53-zone.tf          # DNS zone configuration  
+│   ├── route53-records.tf       # DNS records with failover routing
+│   ├── route53-health-checks.tf # Health monitoring (30s intervals)
+│   ├── s3-bucket.tf             # S3 bucket: cloudcast-weather-vitor-prod-2026
+│   ├── s3-bucket-policy.tf      # S3 public access permissions
+│   ├── s3-bucket-website.tf     # S3 static website configuration
+│   └── s3-objects.tf            # Website file uploads (HTML, CSS, JS, assets)
 │
-├── azure/                       # Azure Infrastructure
-│   ├── azure-resource-group.tf  # Resource group
-│   ├── azure-storage-account.tf # Storage account
-│   ├── azure-storage-website.tf # Static website config
-│   ├── azure-storage-blobs.tf   # Website file uploads
-│   └── azure-front-door.tf      # Front Door for apex domain
+├── 🔵 Azure Infrastructure Files
+│   ├── azure-resource-group.tf  # Resource group: rg-static-website
+│   ├── azure-storage-account.tf # Storage: myaccounttostorageweb
+│   ├── azure-storage-website.tf # Static website configuration
+│   ├── azure-storage-blobs.tf   # Website file uploads (mirror of AWS)
+│   └── azure-front-door.tf      # 🔑 Front Door for apex domain support
+│       ├── Profile: multicloud-weather-app-prod-fd
+│       ├── Endpoint: multicloud-weather-app-prod-endpoint-*
+│       ├── Custom Domain: cloud.flog.br
+│       ├── SSL Certificate: Auto-managed
+│       └── WAF Policy: Basic protection
 │
-├── shared/                      # Shared Configuration
-│   ├── provider.tf              # Provider configurations
-│   ├── versions.tf              # Terraform version constraints
-│   ├── variables.tf             # Input variables
-│   ├── outputs.tf               # Output values
-│   ├── locals.tf                # Local values
-│   └── data.tf                  # Data sources
+├── ⚙️ Shared Configuration Files  
+│   ├── provider.tf              # AWS + Azure provider setup
+│   ├── versions.tf              # Terraform >= 1.0, providers  
+│   ├── variables.tf             # All input variables
+│   ├── outputs.tf               # Infrastructure outputs (URLs, IDs)
+│   ├── locals.tf                # Common tags, computed values
+│   └── data.tf                  # Data sources (DNS resolution)
 │
-├── *.tf                         # Symlinks to all .tf files (for Terraform execution)
-├── website/                     # Static website files
-│   ├── index.html              # Main page
-│   ├── styles.css              # Styling
-│   ├── script.js               # JavaScript
+├── website/                     # 🌐 CloudCast Weather Application
+│   ├── index.html              # Main application (7026 bytes)
+│   ├── styles.css              # Responsive design
+│   ├── script.js               # Weather functionality 
+│   ├── error.html              # Custom error page
 │   └── assets/                 # Images and icons
+│       ├── cloud.png, wind.png, humidity.png
+│       ├── location.png, search.png, not-found.png
+│       ├── loading.gif, favicon.ico
+│       └── ... (all assets deployed to both clouds)
 │
-├── .kiro/                      # Development workflows
-│   ├── adr-implement/          # Architecture Decision Records
-│   │   └── new.aruitecture.md  # Azure Front Door implementation ADR
-│   └── specs/                  # Feature specifications
-│       └── apex-domain-failover/ # Apex domain failover spec
+├── .kiro/                      # 🛠️ Development Workflows
+│   ├── adr-implement/          # Architecture Decision Records  
+│   │   └── new.aruitecture.md  # ⭐ Azure Front Door ADR implementation
+│   └── specs/                  # Feature specifications  
+│       └── apex-domain-failover/ # Apex domain failover specification
 │
-├── FAILOVER-GUIDE.md          # Operational failover guide
-└── README.md                  # This file
+├── test-failover.sh           # 🧪 Failover testing script
+├── FAILOVER-GUIDE.md          # 📖 Operational procedures  
+├── terraform.tfvars.example   # 📋 Configuration template
+├── terraform.tfvars           # 🔐 Your credentials (gitignored)
+└── README.md                  # 📚 This documentation
 ```
+
+### 🏗️ **Infrastructure Components Map**
+
+| Component | AWS Resource | Azure Resource | Purpose |
+|-----------|--------------|----------------|---------|
+| **CDN** | CloudFront `E2TCYEUU1C9JVN` | Front Door `multicloud-weather-app-prod-fd` | Global content delivery |
+| **Storage** | S3 `cloudcast-weather-vitor-prod-2026` | Storage `myaccounttostorageweb` | Static website hosting |
+| **DNS** | Route53 Zone `Z0047040XW8P8MS7S80T` | - | Domain management + failover |
+| **Health Checks** | Route53 Health Checks | - | Automatic failover triggering |
+| **SSL** | ACM Certificate | Front Door Managed | HTTPS encryption |
+| **Security** | WAF (CloudFront-managed) | Front Door WAF Policy | Basic protection |
 
 ## 🚀 Quick Start
 
@@ -424,10 +447,68 @@ aws route53 get-health-check --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d
 
 ## 🤝 Contributing
 
-1. Follow the existing Terraform module structure
-2. Update documentation for any architecture changes
-3. Test changes in a separate environment first
-4. Ensure health checks remain functional
+### 🛠️ **Development Guidelines**
+
+#### 📋 **Before Contributing**
+1. **Read the ADR**: Review `.kiro/adr-implement/new.aruitecture.md` for architecture decisions
+2. **Test Locally**: Validate changes with `terraform plan` before applying
+3. **Follow Structure**: Maintain the AWS/Azure/Shared module separation
+4. **Update Documentation**: Keep README and FAILOVER-GUIDE.md current
+
+#### 🏗️ **Infrastructure Changes**
+```bash
+# 1. Follow the established naming pattern
+# AWS resources → route53-*, s3-* files
+# Azure resources → azure-* files  
+# Shared config → provider.tf, variables.tf, locals.tf, etc.
+
+# 2. Maintain provider separation
+# Don't mix AWS and Azure resources in same file
+# Use data sources for cross-provider references
+
+# 3. Validate changes
+terraform fmt       # Format code
+terraform validate  # Check syntax
+terraform plan      # Review changes
+
+# 4. Test health checks
+./test-failover.sh  # Verify failover still works
+```
+
+#### 📝 **Documentation Updates**
+- **README.md**: Architecture overview and setup instructions
+- **FAILOVER-GUIDE.md**: Operational procedures and troubleshooting
+- **terraform.tfvars.example**: Configuration template updates
+- **ADR**: Document architectural decisions in `.kiro/adr-implement/`
+
+#### 🧪 **Testing Requirements**
+```bash
+# All changes must pass these tests:
+terraform validate                    # ✅ Syntax validation
+terraform plan                       # ✅ No unintended changes  
+curl -I https://cloud.flog.br        # ✅ Domain accessibility
+./test-failover.sh                   # ✅ Failover functionality
+```
+
+### 🎯 **Contribution Areas**
+
+#### 🔧 **Infrastructure Improvements**
+- Enhanced monitoring and alerting
+- Additional cloud provider integration (CloudFlare)  
+- Performance optimization
+- Security enhancements
+
+#### 📊 **Operational Excellence**  
+- Automated backup procedures
+- Enhanced health check logic
+- Cost optimization recommendations
+- Performance benchmarking
+
+#### 🌐 **Application Features**
+- Weather API integration
+- Enhanced UI/UX improvements
+- Progressive Web App (PWA) support
+- Mobile responsiveness enhancements
 
 ## 📈 Roadmap
 
@@ -468,18 +549,195 @@ aws route53 get-health-check --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d
 
 ## 🔒 Security
 
-- **HTTPS**: Enforced across all endpoints
-- **WAF**: Basic protection on Azure Front Door
-- **Access Control**: Least-privilege IAM policies
-- **Secrets**: Managed through Terraform sensitive variables
+### 🛡️ **Multi-Layer Security Implementation**
 
-## 📞 Support
+#### ✅ **Transport Security**
+- **HTTPS Enforced**: All endpoints redirect HTTP → HTTPS
+- **TLS 1.2+**: Minimum encryption standard across both clouds
+- **SSL Certificates**: 
+  - AWS: ACM-managed (`arn:aws:acm:us-east-1:910661159891:certificate/05af508f-ca17-4577-ac92-a0a242283040`)
+  - Azure: Front Door auto-managed certificates
+- **HSTS**: HTTP Strict Transport Security headers
 
-For issues and questions:
+#### 🔐 **Access Control**
+- **S3 Bucket Policy**: Public read access for website content only
+- **Azure Storage**: Public blob access restricted to `$web` container
+- **IAM Roles**: Least-privilege AWS permissions
+- **Azure RBAC**: Service principal with minimal required permissions
 
-1. Check `FAILOVER-GUIDE.md` for operational issues
-2. Review Terraform logs for infrastructure problems  
-3. Consult `.kiro/specs/` for feature documentation
+#### 🛡️ **Web Application Firewall (WAF)**
+```hcl
+# Azure Front Door WAF Configuration
+WAF Policy: multicloudweatherappprodwaf
+Mode: Prevention
+Rules: Basic protection against common threats
+Custom Blocks: HTTP 403 with custom response
+```
+
+#### 🔑 **Infrastructure Security**
+- **Terraform State**: Secure state management (local/remote backends)
+- **Credentials**: Managed via Terraform sensitive variables
+- **Network Security**: CloudFront + Front Door edge security
+- **Monitoring**: Health check monitoring for availability attacks
+
+### 🚨 **Security Monitoring**
+
+```bash
+# Check SSL certificate status
+curl -I https://cloud.flog.br | grep -E "(HTTP|Server|X-)"
+
+# Verify HTTPS redirect
+curl -I http://cloud.flog.br
+
+# Test WAF protection (Azure)
+curl -I "https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net/?<script>alert('test')</script>"
+```
+
+## 🚨 Troubleshooting
+
+### 🔍 **Common Issues & Solutions**
+
+#### ❌ **Issue: "NoSuchWebsiteConfiguration" Error**
+```bash
+# Symptom: CloudFront returns 404 with S3 error
+# Cause: CloudFront pointing to wrong S3 bucket
+# Solution: Update CloudFront origin (already fixed)
+
+aws cloudfront get-distribution-config --id E2TCYEUU1C9JVN
+# Verify origin points to: cloudcast-weather-vitor-prod-2026.s3-website-us-east-1.amazonaws.com
+```
+
+#### ❌ **Issue: Azure Front Door 404 on Custom Domain**
+```bash  
+# Symptom: Custom domain association failing
+# Cause: DNS validation or route association issues
+# Solution: Check custom domain status
+
+az cdn custom-domain show \
+  --profile-name multicloud-weather-app-prod-fd \
+  --resource-group rg-static-website \
+  --name cloud-flog-br
+```
+
+#### ❌ **Issue: DNS Not Failing Over**
+```bash
+# Symptom: Traffic still goes to failed endpoint
+# Cause: Health checks not detecting failure properly
+# Debug: Check health check configuration
+
+aws route53 get-health-check --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+
+# Verify health check is testing correct path and expects correct response
+```
+
+#### ❌ **Issue: "Access Denied" on S3**
+```bash
+# Symptom: AWS operations fail with access denied
+# Cause: Compromised key quarantine or insufficient permissions
+# Solution: Create new IAM user with required permissions
+
+aws sts get-caller-identity  # Check current credentials
+# If quarantined, use new access keys (already provided)
+```
+
+### 🔧 **Diagnostic Commands**
+
+```bash
+# Complete infrastructure status check
+terraform output website_urls
+
+# Test all endpoints
+curl -I https://d32ri76eiboi37.cloudfront.net                                    # AWS CloudFront
+curl -I https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net  # Azure Front Door  
+curl -I https://cloud.flog.br                                                    # Custom domain
+curl -I http://cloudcast-weather-vitor-prod-2026.s3-website-us-east-1.amazonaws.com    # S3 direct
+
+# DNS resolution check
+dig +short cloud.flog.br                    # Should return CloudFront IPs (Primary)
+dig +short @8.8.8.8 cloud.flog.br          # External DNS check
+
+# Health check status
+aws route53 get-health-check-status --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+
+# Terraform state verification
+terraform plan                              # Should show "No changes"
+terraform refresh && terraform plan        # Refresh and re-check
+```
+
+### 📞 **Support Escalation Path**
+
+1. **Infrastructure Issues**: Check `terraform plan` for drift
+2. **DNS Problems**: Verify health checks with `aws route53 get-health-check-status`
+3. **Performance Issues**: Check CDN cache status and edge locations
+4. **Security Concerns**: Review WAF logs and access patterns  
+5. **Operational Issues**: Consult `FAILOVER-GUIDE.md` for procedures
+
+### 📞 **Support Resources**
+
+#### 🚨 **Emergency Procedures**
+1. **Complete Outage**: Check both AWS and Azure status pages
+2. **DNS Issues**: Verify Route53 health checks and record configuration
+3. **Certificate Problems**: Check ACM (AWS) and Front Door (Azure) SSL status
+4. **Performance Issues**: Review CDN edge location and caching behavior
+
+#### 📚 **Documentation References**
+- **Architecture**: `.kiro/adr-implement/new.aruitecture.md`
+- **Operations**: `FAILOVER-GUIDE.md`  
+- **Testing**: `test-failover.sh`
+- **Configuration**: `terraform.tfvars.example`
+
+#### 🔍 **Monitoring Resources**
+- **Health Check IDs**: See Terraform outputs for current IDs
+- **CloudFront Distribution**: `E2TCYEUU1C9JVN`
+- **Azure Front Door**: `multicloud-weather-app-prod-fd`
+- **Route53 Zone**: `Z0047040XW8P8MS7S80T`
+
+## 📋 Quick Reference
+
+### 🚀 **Essential Commands**
+
+```bash
+# Deployment
+terraform init && terraform apply -auto-approve
+
+# Status Check
+terraform output website_urls
+dig +short cloud.flog.br
+curl -I https://cloud.flog.br
+
+# Failover Test
+./test-failover.sh
+
+# Health Monitoring
+aws route53 get-health-check-status --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+
+# Infrastructure Verification
+terraform plan  # Should show "No changes"
+```
+
+### 🌐 **Key URLs**
+
+| Purpose | URL | Status |
+|---------|-----|--------|
+| **Production Site** | `https://cloud.flog.br` | 🟢 Active |
+| **AWS Primary** | `https://d32ri76eiboi37.cloudfront.net` | 🟢 Active |  
+| **Azure Secondary** | `https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net` | 🟢 Standby |
+| **AWS S3 Direct** | `http://cloudcast-weather-vitor-prod-2026.s3-website-us-east-1.amazonaws.com` | 🟢 Origin |
+| **Azure Storage Direct** | `https://myaccounttostorageweb.z13.web.core.windows.net` | 🟢 Origin |
+
+### ⚡ **Performance Benchmarks**
+
+```bash
+# Response time testing
+time curl -I https://cloud.flog.br
+time curl -I https://d32ri76eiboi37.cloudfront.net  
+time curl -I https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net
+
+# Expected results:
+# - Global CDN: < 200ms
+# - SSL handshake: < 500ms  
+# - Failover switch: < 90 seconds
+```
 
 ---
 
