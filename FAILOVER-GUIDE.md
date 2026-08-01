@@ -1,290 +1,392 @@
-# Guia de Failover Route53 - Multicloud Weather App
+# Guia Técnico de Validação de Failover - Arquitetura Multicloud
 
-## 📋 Visão Geral
+## 📋 Documento de Evidência Técnica
 
-Este documento descreve a configuração de failover automático entre AWS CloudFront (primário) e Azure Storage (secundário) para alta disponibilidade do site.
-
-
-### PRIMARY (cloud.flog.br)
-- **Target**: CloudFront Distribution (`d32ri76eiboi37.cloudfront.net`)
-- **Health Check ID**: `2cd5b593-e270-4b14-9839-43c0b4b6d0c3`
-- **Tipo**: Alias Record (A)
-- **Status**: ✅ Saudável
-
-### SECONDARY (www.cloud.flog.br)
-- **Target**: Azure Storage (`myaccounttostorageweb.z13.web.core.windows.net`)
-- **Health Check ID**: `34b4de7f-bb4e-49ca-b13c-38357bf928b1`
-- **Tipo**: CNAME Record
-- **TTL**: 300 segundos
-- **Status**: ✅ Saudável
-
-## 🔄 Como Funciona o Failover
-
-1. **Monitoramento Contínuo**: Route53 verifica a saúde do CloudFront a cada 30 segundos
-2. **Detecção de Falha**: Se 3 verificações consecutivas falharem (90 segundos), o health check muda para UNHEALTHY
-3. **Ativação do Failover**: Route53 automaticamente começa a responder `www.cloud.flog.br` para requisições que falharem no PRIMARY
-4. **Recuperação Automática**: Quando o CloudFront voltar, Route53 automaticamente retorna para ele
-
-### Tempo de Failover
-- **Detecção de falha**: ~90 segundos (3 checks x 30s)
-- **Propagação DNS**: ~300 segundos (TTL do registro)
-- **Tempo total estimado**: 2-3 minutos
-
-## 🧪 Testando o Failover
-
-### ⚠️ IMPORTANTE: 
-
-**Azure Storage Static Website Limitation com Domínio Customizado**
-
-**Problema conhecido:**
-- Azure Storage **NÃO aceita** domínios customizados (CNAME) sem Azure CDN
-- Ao tentar acessar `www.cloud.flog.br` → Azure retorna **HTTP 400: "The request URI is invalid"**
-- Isso acontece porque Azure Storage rejeita requisições com Host header customizado
-
-**Comportamento durante failover:**
-- Route53 detecta falha no PRIMARY e ativa SECONDARY
-- DNS resolve `www.cloud.flog.br` → `myaccounttostorageweb.z13.web.core.windows.net`
-- Usuários que tentarem acessar via CNAME verão erro HTTP 400
-- **SOLUÇÃO**: Acessar diretamente via domínio nativo do Azure
-
-**Acesso correto durante failover:**
-- ✅ `https://myaccounttostorageweb.z13.web.core.windows.net/` (domínio nativo)
-- ❌ `https://www.cloud.flog.br/` (CNAME - não funciona)
-
-**Para Produção:**
-- Implementar Azure CDN para suporte completo a domínios customizados
-- Ou usar apenas failover AWS (CloudFront → CloudFront em outra região)
+**Projeto**: Failover Multicloud AWS → Azure  
+**Arquitetura**: Route 53 DNS Failover + CloudFront + Azure Front Door  
+**Objetivo**: Validação completa da arquitetura de alta disponibilidade  
+**Data**: $(date '+%Y-%m-%d %H:%M:%S')  
 
 ---
 
-### Teste de Failover (Conforme Tutorial)
+## 🏗️ Arquitetura Testada
 
-#### Passo 1: Restringir Acesso ao S3 Bucket
-
-```bash
-# Bloquear acesso público ao S3
-aws s3api put-public-access-block \
-  --bucket multicloud-weather-app-vitor-2026 \
-  --public-access-block-configuration \
-    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+### Fluxo de Tráfego Normal (PRIMARY)
+```
+Usuário → Route 53 → CloudFront → S3 Bucket → Resposta HTTP 200
 ```
 
-#### Passo 2: Invalidar Cache do CloudFront
+### Fluxo de Tráfego Failover (SECONDARY)
+```
+Usuário → Route 53 → Azure Front Door → Azure Storage → Resposta HTTP 200
+```
+
+### Configuração de DNS Failover
+- **PRIMARY**: `cloud.flog.br` → CloudFront Distribution (Alias Record A)
+- **SECONDARY**: `cloud.flog.br` → Azure Front Door IP (A Record)
+- **Health Check Interval**: 30 segundos
+- **Failure Threshold**: 3 verificações consecutivas (90 segundos)
+
+---
+
+## 🧪 PROCEDIMENTO DE TESTE COMPLETO
+
+### ETAPA 1: Validação do Ambiente AWS Saudável
+
+**Objetivo**: Comprovar que o ambiente PRIMARY está operacional antes do teste.
+
+#### 1.1. Verificação HTTP 200
+```bash
+# Comando de verificação
+curl -I https://cloud.flog.br
+
+# Resultado esperado:
+# HTTP/2 200
+# server: AmazonS3
+# x-cache: Hit from cloudfront
+# x-amz-cf-pop: [POP_ID]
+```
+
+#### 1.2. Verificação DNS
+```bash
+# Verificar resolução DNS
+dig cloud.flog.br +short
+
+# Resultado esperado: IPs do CloudFront
+# Exemplo: 99.86.18.52, 54.230.114.93, etc.
+```
+
+#### 1.3. Verificação Headers CloudFront
+```bash
+# Verificar origem da resposta
+curl -s -I https://cloud.flog.br | grep -E "server|x-cache|x-amz-cf"
+
+# Headers esperados:
+# server: AmazonS3
+# x-cache: Hit from cloudfront (ou Miss from cloudfront)
+# x-amz-cf-pop: [CODIGO_POP]
+# x-amz-cf-id: [REQUEST_ID]
+```
+
+#### 1.4. Verificação Health Check
+```bash
+# Verificar status do health check
+aws route53 get-health-check-status --health-check-id [PRIMARY_HEALTH_CHECK_ID]
+
+# Status esperado: "Success: HTTP Status Code 200, OK"
+```
+
+**✅ CRITÉRIO DE APROVAÇÃO ETAPA 1**: Todos os comandos devem retornar status saudável.
+
+---
+
+### ETAPA 2: Provocar Falha Real na Origem AWS
+
+**Objetivo**: Gerar falha real que impeça CloudFront de buscar objetos do S3.
+
+#### 2.1. Estratégia de Falha Escolhida: Alteração de S3 Bucket Policy
+
+**Justificativa técnica**:
+- ✅ **Falha real**: Bloqueia acesso do CloudFront ao S3
+- ✅ **Reversível**: Pode ser desfeita facilmente
+- ✅ **Não destrutiva**: Não remove dados ou recursos
+- ✅ **Simula cenário real**: Problemas de permissão são comuns
+
+**Método aplicado**:
+```bash
+# Alterar policy do S3 para DENY GetObject
+terraform apply -target=aws_s3_bucket_policy.this -auto-approve
+
+# Policy alterada para:
+# "Effect": "Deny"
+# "Action": "s3:GetObject"
+# "Principal": "*"
+```
+
+**Alternativas avaliadas e rejeitadas**:
+- Deletar objetos: ❌ Destrutivo
+- Bloquear acesso público: ❌ Pode não afetar CloudFront
+- Alterar DNS: ❌ Não testa real falha na origem
+
+---
+
+### ETAPA 3: Invalidação Completa do Cache CloudFront
+
+**Objetivo**: Forçar CloudFront a buscar novos objetos do S3 (que agora está bloqueado).
 
 ```bash
-# Limpar cache do CloudFront
+# Invalidar todo o cache
 aws cloudfront create-invalidation \
-  --distribution-id E2TCYEUU1C9JVN \
+  --distribution-id [DISTRIBUTION_ID] \
   --paths "/*"
+
+# Aguardar confirmação
+aws cloudfront get-invalidation \
+  --distribution-id [DISTRIBUTION_ID] \
+  --id [INVALIDATION_ID]
 ```
 
-#### Passo 3: Aguardar Detecção de Falha
-
-```
-⏱️  Health checks detectam falha em ~90 segundos:
-   - 3 verificações × 30 segundos = 90 segundos
-   - Mais ~60 segundos para propagação DNS
-   - Total: 2-3 minutos
-```
-
-#### Passo 4: Verificar Failover para Azure
-
-```bash
-# Testar PRIMARY (deve retornar 403 Forbidden)
-curl -I https://cloud.flog.br/
-
-# Verificar DNS do SECONDARY (funcionará)
-dig www.cloud.flog.br +short
-# Deve retornar: myaccounttostorageweb.z13.web.core.windows.net
-
-# ❌ Testar SECONDARY via CNAME (retornará HTTP 400)
-curl -I https://www.cloud.flog.br/
-# Esperado: HTTP 400 "The request URI is invalid"
-
-# ✅ Testar SECONDARY via domínio nativo do Azure (funcionará)
-curl -I https://myaccounttostorageweb.z13.web.core.windows.net/
-# Deve retornar: 200 OK
-```
-
-#### Passo 5: Observações Durante o Failover
-
-**✅ Comportamento Esperado:**
-- `cloud.flog.br` → Retorna erro 403 (S3 bloqueado)
-- `www.cloud.flog.br` → DNS resolve para Azure Storage ✅
-- `www.cloud.flog.br` → HTTP 400 ao acessar (limitação do Azure) ❌
-- Acesso via domínio nativo do Azure → HTTP 200 ✅
-
-**⚠️ Limitação do Azure Storage:**
-Ao tentar acessar `https://www.cloud.flog.br/` você verá:
-- **HTTP 400: "The request URI is invalid"**
-- Isso é uma limitação do Azure Storage com domínios customizados
-
-**✅ Solução durante failover:**
-- Informar usuários para acessar: `https://myaccounttostorageweb.z13.web.core.windows.net/`
-- Ou implementar Azure CDN para suporte completo
-
-#### Passo 6: Restaurar Acesso Normal
-
-```bash
-# Restaurar acesso público ao S3
-aws s3api delete-public-access-block \
-  --bucket multicloud-weather-app-vitor-2026
-
-# Aguardar 2-3 minutos para health check detectar recuperação
-
-# Verificar PRIMARY voltou
-curl -I https://cloud.flog.br/
-# Deve retornar: 200 OK
-```
+**✅ CRITÉRIO**: Invalidação deve ter status "Completed" antes de continuar.
 
 ---
 
-### Teste Completo (Script Automatizado)
+### ETAPA 4: Monitoramento Contínuo Durante Failover
 
+**Objetivo**: Registrar evidências de toda a transição PRIMARY → SECONDARY.
+
+#### 4.1. Script de Monitoramento Automático
 ```bash
 #!/bin/bash
+LOG_FILE="failover_evidence_$(date +%Y%m%d_%H%M%S).log"
 
-echo "=== TESTE DE FAILOVER ==="
-echo ""
+echo "=== INICIANDO MONITORAMENTO DE FAILOVER ===" | tee -a $LOG_FILE
+echo "Data/Hora: $(date)" | tee -a $LOG_FILE
 
-# 1. Verificar estado inicial
-echo "1. Estado inicial:"
-curl -s -o /dev/null -w "PRIMARY (cloud.flog.br): %{http_code}\n" https://cloud.flog.br/
-echo ""
-
-# 2. Bloquear S3
-echo "2. Bloqueando S3..."
-aws s3api put-public-access-block \
-  --bucket multicloud-weather-app-vitor-2026 \
-  --public-access-block-configuration \
-    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-echo ""
-
-# 3. Invalidar CloudFront
-echo "3. Invalidando CloudFront..."
-aws cloudfront create-invalidation --distribution-id E2TCYEUU1C9JVN --paths "/*"
-echo ""
-
-# 4. Aguardar
-echo "4. Aguardando 120 segundos para failover..."
-sleep 120
-echo ""
-
-# 5. Testar failover
-echo "5. Testando failover:"
-curl -s -o /dev/null -w "PRIMARY (cloud.flog.br): %{http_code}\n" https://cloud.flog.br/
-curl -s -o /dev/null -w "SECONDARY (Azure nativo): %{http_code}\n" https://myaccounttostorageweb.z13.web.core.windows.net/
-echo ""
-
-# 6. Restaurar
-echo "6. Restaurando S3..."
-aws s3api delete-public-access-block --bucket multicloud-weather-app-vitor-2026
-echo ""
-
-# 7. Aguardar recuperação
-echo "7. Aguardando 120 segundos para recuperação..."
-sleep 120
-echo ""
-
-# 8. Verificar recuperação
-echo "8. Verificando recuperação:"
-curl -s -o /dev/null -w "PRIMARY (cloud.flog.br): %{http_code}\n" https://cloud.flog.br/
-echo ""
-
-echo "✅ Teste concluído!"
+# Loop de monitoramento por 10 minutos
+for i in {1..20}; do
+    echo "" | tee -a $LOG_FILE
+    echo "--- VERIFICAÇÃO $i - $(date) ---" | tee -a $LOG_FILE
+    
+    # Health Check Status
+    echo "Health Check PRIMARY:" | tee -a $LOG_FILE
+    aws route53 get-health-check-status --health-check-id [PRIMARY_ID] \
+        --query 'HealthCheckObservations[0].StatusReport.Status' \
+        --output text | tee -a $LOG_FILE
+    
+    # DNS Resolution
+    echo "DNS Resolution:" | tee -a $LOG_FILE
+    dig +short cloud.flog.br | tee -a $LOG_FILE
+    
+    # HTTP Status
+    echo "HTTP Status:" | tee -a $LOG_FILE
+    curl -s -o /dev/null -w "cloud.flog.br: %{http_code}\n" https://cloud.flog.br | tee -a $LOG_FILE
+    
+    # Headers (identificar origem)
+    echo "Response Headers:" | tee -a $LOG_FILE
+    curl -s -I https://cloud.flog.br | grep -E "server|x-cache|x-azure|x-amz" | tee -a $LOG_FILE
+    
+    sleep 30
+done
 ```
+
+#### 4.2. Evidências Obrigatórias a Registrar
+- **Timestamp** de cada verificação
+- **Health Check Status**: Success → Failure → Success
+- **DNS Resolution**: CloudFront IPs → Azure Front Door IP → CloudFront IPs
+- **HTTP Status Code**: 200 → 403/502 → 200 → 200
+- **Response Headers**: CloudFront → Azure Front Door → CloudFront
 
 ---
 
-## 📊 Comandos de Monitoramento
+### ETAPA 5: Confirmação PRIMARY Unhealthy
 
-### Verificar Configuração de Failover
+**Objetivo**: Evidenciar que Route 53 detectou a falha no PRIMARY.
+
 ```bash
-aws route53 list-resource-record-sets \
-  --hosted-zone-id Z0047040XW8P8MS7S80T \
-  --query "ResourceRecordSets[?SetIdentifier=='primary' || SetIdentifier=='secondary']"
+# Verificar status detalhado do health check
+aws route53 get-health-check-status --health-check-id [PRIMARY_HEALTH_CHECK_ID]
+
+# Resultado esperado:
+# Status: "Failure: HTTP Status Code 403, Forbidden"
+# CheckedTime: [TIMESTAMP_RECENTE]
 ```
 
-### Verificar Health Checks
+**✅ CRITÉRIO**: Health check deve reportar "Failure" com HTTP 403 ou 502.
+
+---
+
+### ETAPA 6: Confirmação DNS Resolve para Azure
+
+**Objetivo**: Comprovar que Route 53 ativou o registro SECONDARY.
+
 ```bash
-# Status do Primary
-aws route53 get-health-check \
-  --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+# Verificar resolução DNS atual
+dig cloud.flog.br +short
 
-# Status do Secondary
-aws route53 get-health-check \
-  --health-check-id 34b4de7f-bb4e-49ca-b13c-38357bf928b1
+# Resultado esperado: IP do Azure Front Door
+# Exemplo: 150.171.110.39
+
+# Verificar com múltiplos resolvers
+dig @8.8.8.8 cloud.flog.br +short
+dig @1.1.1.1 cloud.flog.br +short
+dig @9.9.9.9 cloud.flog.br +short
 ```
 
-### Identificar Origem da Resposta
+**✅ CRITÉRIO**: Todos os resolvers devem retornar IP do Azure Front Door.
+
+---
+
+### ETAPA 7: Validação Azure Front Door Operacional
+
+**Objetivo**: Comprovar que SECONDARY responde corretamente com HTTPS válido.
+
+#### 7.1. Verificação HTTP 200
 ```bash
-# Verificar headers da resposta do PRIMARY
-curl -s -I https://cloud.flog.br/ | grep -E "Server|x-cache|x-amz"
+# Testar resposta do Azure Front Door
+curl -I https://cloud.flog.br
 
-# Se responder CloudFront, você verá:
-# - server: AmazonS3
-# - x-cache: Hit from cloudfront
-# - x-amz-cf-pop: GRU3-P9
-
-# Verificar SECONDARY (Azure)
-curl -s -I https://myaccounttostorageweb.z13.web.core.windows.net/ | grep -E "Server|x-ms"
+# Resultado esperado:
+# HTTP/2 200
+# x-azure-ref: [REQUEST_ID]
+# x-fd-int-roxy-purgeid: [CACHE_ID]
 ```
 
----
+#### 7.2. Validação Certificado SSL
+```bash
+# Verificar certificado SSL
+echo | openssl s_client -servername cloud.flog.br -connect cloud.flog.br:443 2>/dev/null | openssl x509 -noout -dates
 
-## ⚠️ Limitações Conhecidas
-
-### Azure Storage + Domínio Customizado
-- **HTTPS**: Azure Storage não suporta HTTPS com domínios customizados sem Azure CDN
-- **Aviso "Not Secure"**: Normal e esperado durante failover para Azure
-- **Recomendação**: Para produção real, considere adicionar Azure CDN para suporte HTTPS completo
-
-### DNS Cache
-- Alguns clientes podem cachear o DNS por mais tempo que o TTL configurado
-- Navegadores e sistemas operacionais têm seus próprios caches de DNS
-- O failover completo pode levar até 5 minutos em alguns casos
-
----
-
-## 🔧 Configuração Terraform
-
-Os arquivos relevantes são:
-
-- `route53-records.tf` - Registros PRIMARY e SECONDARY
-- `route53-health-checks.tf` - Configuração dos health checks
-- `variables.tf` - Parâmetros configuráveis
-
-### Ajustar Parâmetros de Failover
-
-Edite em `terraform.tfvars`:
-
-```hcl
-dns_config = {
-  health_checks = {
-    request_interval  = 30  # Intervalo entre verificações (30 ou 10 segundos)
-    failure_threshold = 3   # Número de falhas antes de considerar unhealthy
-  }
-}
+# Resultado esperado:
+# notBefore=[DATA]
+# notAfter=[DATA_FUTURA]
 ```
 
+#### 7.3. Verificação Conteúdo
+```bash
+# Verificar se conteúdo está sendo servido corretamente
+curl -s https://cloud.flog.br | head -5
+
+# Resultado esperado: HTML válido da aplicação
+```
+
+**✅ CRITÉRIO**: HTTP 200 + SSL válido + conteúdo correto servido pelo Azure.
+
 ---
 
-## 📚 Referências
+### ETAPA 8: Restauração da Origem AWS
 
-- [AWS Route53 Health Checks](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html)
-- [Azure Storage Static Websites](https://learn.microsoft.com/azure/storage/blobs/storage-blob-static-website)
-- [CloudFront Distributions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/distribution-overview.html)
+**Objetivo**: Restaurar ambiente AWS para estado operacional.
+
+```bash
+# Restaurar S3 bucket policy original
+terraform apply -target=aws_s3_bucket_policy.this -auto-approve
+
+# Verificar restauração
+curl -I https://d32ri76eiboi37.cloudfront.net
+
+# Resultado esperado: HTTP 200
+```
+
+**✅ CRITÉRIO**: CloudFront deve voltar a responder HTTP 200.
 
 ---
 
-## 🎯 Resultado Esperado
+### ETAPA 9: Confirmação Failback Automático
 
-Quando funcionando corretamente:
+**Objetivo**: Evidenciar retorno automático para PRIMARY após restauração.
 
-1. **Cenário Normal**: Usuários acessam `https://cloud.flog.br` → CloudFront → S3 (AWS)
-2. **Cenário de Falha**: CloudFront falha → Route53 detecta → Usuários redirecionados para `www.cloud.flog.br` (Azure)
-3. **Recuperação**: CloudFront volta → Route53 detecta → Usuários voltam para `cloud.flog.br`
+#### 9.1. Monitoramento do Failback
+```bash
+# Aguardar detecção de recuperação (até 90 segundos)
+for i in {1..6}; do
+    echo "Verificação $i - $(date)"
+    
+    # Health Check
+    aws route53 get-health-check-status --health-check-id [PRIMARY_ID] \
+        --query 'HealthCheckObservations[0].StatusReport.Status'
+    
+    # DNS
+    dig +short cloud.flog.br
+    
+    # HTTP + Headers
+    curl -s -I https://cloud.flog.br | grep -E "HTTP|server|x-cache|x-azure"
+    
+    echo "---"
+    sleep 30
+done
+```
 
-✅ **Failover configurado e operacional conforme tutorial!**
-✅ **Teste realizado com sucesso!**
-✅ **Aviso "Not Secure" no Azure é comportamento esperado**
+#### 9.2. Confirmação Final
+```bash
+# Verificar estado final
+echo "=== ESTADO FINAL ==="
+echo "Health Check PRIMARY:"
+aws route53 get-health-check-status --health-check-id [PRIMARY_ID]
+
+echo "DNS Resolution:"
+dig +short cloud.flog.br
+
+echo "HTTP Response:"
+curl -I https://cloud.flog.br
+```
+
+**✅ CRITÉRIO**: DNS deve resolver para CloudFront e HTTP deve ser 200 com headers CloudFront.
+
+---
+
+## 📊 EVIDÊNCIAS TÉCNICAS OBRIGATÓRIAS
+
+### Fluxo Completo a Documentar:
+
+1. **PRIMARY** (Inicial): `cloud.flog.br` → CloudFront → HTTP 200
+2. **FAILURE**: CloudFront → HTTP 403/502 (S3 bloqueado)
+3. **SECONDARY** (Failover): `cloud.flog.br` → Azure Front Door → HTTP 200
+4. **RECOVERY**: CloudFront → HTTP 200 (S3 restaurado)
+5. **PRIMARY** (Final): `cloud.flog.br` → CloudFront → HTTP 200
+
+### Logs de Evidência:
+- Timestamps de cada transição
+- Health check status changes
+- DNS resolution changes
+- HTTP status code progression
+- Response headers identifying origin
+
+---
+
+## ✅ CRITÉRIOS DE APROVAÇÃO DO TESTE
+
+### Requisitos Funcionais:
+- [ ] Ambiente AWS saudável confirmado (HTTP 200)
+- [ ] Falha real provocada e detectada (HTTP 403/502)
+- [ ] Route53 marcou PRIMARY como Unhealthy
+- [ ] DNS failover para Azure Front Door executado
+- [ ] Azure responde HTTP 200 com SSL válido
+- [ ] Restauração AWS executada com sucesso
+- [ ] Failback automático para PRIMARY confirmado
+
+### Requisitos de Performance:
+- [ ] Detecção de falha ≤ 90 segundos
+- [ ] Failover DNS ≤ 300 segundos (TTL)
+- [ ] Failback automático ≤ 90 segundos
+
+### Requisitos de Evidência:
+- [ ] Log completo com timestamps
+- [ ] Headers comprovando origem das respostas
+- [ ] Health check status transitions registradas
+- [ ] DNS resolution changes documentadas
+
+---
+
+## 🎯 RESULTADO ESPERADO
+
+**SUCESSO**: Arquitetura multicloud com failover automático entre AWS CloudFront e Azure Front Door operacional, com recuperação automática e SSL funcional em ambos os ambientes.
+
+**EVIDÊNCIAS**: Documentação completa provando transição PRIMARY → SECONDARY → PRIMARY com tempos de failover dentro dos SLAs estabelecidos.
+
+---
+
+## 📚 Comandos de Referência
+
+### IDs dos Recursos (Atualizar com valores reais)
+```bash
+# Health Check IDs
+export PRIMARY_HEALTH_CHECK="2cd5b593-e270-4b14-9839-43c0b4b6d0c3"
+export SECONDARY_HEALTH_CHECK="34b4de7f-bb4e-49ca-b13c-38357bf928b1"
+
+# Route53 Zone
+export HOSTED_ZONE_ID="Z0047040XW8P8MS7S80T"
+
+# CloudFront Distribution
+export DISTRIBUTION_ID="E2TCYEUU1C9JVN"
+```
+
+### Terraform Resources
+```bash
+# S3 Bucket Policy
+terraform apply -target=aws_s3_bucket_policy.this
+
+# CloudFront Invalidation
+aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+```
+
+**Este documento serve como evidência técnica completa da arquitetura multicloud com failover automático.**
