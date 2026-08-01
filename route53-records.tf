@@ -24,9 +24,8 @@ resource "aws_route53_record" "apex_primary" {
   health_check_id = aws_route53_health_check.apex_primary[0].id
 }
 
-# SECONDARY record for apex domain - Routes to Azure Front Door
-# NOTE: We need to use A records with Front Door's IP addresses
-# This requires data source to get Front Door's IPs dynamically
+# SECONDARY record for apex domain - Routes to Azure Front Door endpoint directly
+# Using A record with AFD IP since CNAME not allowed at apex
 resource "aws_route53_record" "apex_secondary" {
   count = var.dns_config.apex_failover.enabled ? 1 : 0
   
@@ -34,9 +33,8 @@ resource "aws_route53_record" "apex_secondary" {
   name    = var.dns_config.domain_name
   type    = "A"
 
-  # Using TTL instead of alias for Front Door
-  # Front Door IPs need to be resolved dynamically
-  records = [data.dns_a_record_set.azure_frontdoor[0].addrs[0]]
+  # Point directly to Azure Front Door IP address
+  records = ["150.171.110.39"]
   ttl     = 300
 
   failover_routing_policy {
@@ -68,16 +66,14 @@ resource "aws_route53_record" "primary" {
   health_check_id = aws_route53_health_check.aws_primary.id
 }
 
-# SECONDARY failover record - Azure Storage Static Website
-# NOTE: Azure Storage does not support custom domains (CNAME) without Azure CDN
-# During failover, users will be redirected but should access via native Azure domain
-# This is a known limitation documented in FAILOVER-GUIDE.md
+# SECONDARY failover record - Azure Front Door endpoint directly
+# Temporary fix: using working AFD endpoint instead of storage endpoint
 resource "aws_route53_record" "secondary" {
   zone_id = aws_route53_zone.this.zone_id
   name    = "www.${var.dns_config.domain_name}"
   type    = "CNAME"
 
-  records = [local.azure_website_endpoint]
+  records = ["multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net"]
   ttl     = 300
 
   failover_routing_policy {

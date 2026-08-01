@@ -17,6 +17,10 @@
         "--rm",
         "hashicorp/terraform-mcp-server:1.1.0"
       ]
+    },
+    "ado-remote-mcp": {
+      "url": "https://mcp.dev.azure.com/{organization}",
+      "type": "http"
     }
   } 
 }    

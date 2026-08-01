@@ -73,6 +73,7 @@ resource "azurerm_cdn_frontdoor_route" "this" {
   cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.this.id
   cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.this.id
   cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.azure_storage.id]
+  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.apex_domain.id]
 
   supported_protocols    = ["Http", "Https"]
   patterns_to_match     = ["/*"]
@@ -140,15 +141,9 @@ resource "azurerm_cdn_frontdoor_custom_domain" "apex_domain" {
     certificate_type    = "ManagedCertificate"
     minimum_version     = "TLS12"
   }
-
-  depends_on = [azurerm_cdn_frontdoor_route.this]
 }
 
-# Associate Custom Domain with Route
-resource "azurerm_cdn_frontdoor_custom_domain_association" "apex_domain" {
-  cdn_frontdoor_custom_domain_id = azurerm_cdn_frontdoor_custom_domain.apex_domain.id
-  cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.this.id]
-}
+# Custom Domain Association is handled by the route configuration
 
 # Security Policy (optional but recommended)
 resource "azurerm_cdn_frontdoor_security_policy" "this" {
