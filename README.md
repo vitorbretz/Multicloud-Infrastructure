@@ -1,228 +1,226 @@
-# Multicloud Weather App Infrastructure
+# Multicloud Failover Architecture - Production Implementation
 
-## 🏗️ Overview
+## 📋 Project Overview
 
-This project implements a **production-ready, highly available multicloud weather application** using AWS and Azure with intelligent DNS failover and **full apex domain support**. The architecture ensures 99.9%+ uptime by distributing the CloudCast weather application across two major cloud providers with automatic failover capabilities.
+**High-availability multicloud static website** with automatic DNS failover between AWS and Azure. Implements disaster recovery architecture using Route 53 health checks to maintain 99.9%+ uptime for the CloudCast weather application.
 
-## 🎯 Architecture
-
-### 🏛️ **Final Implementation - Multicloud Failover with Azure Front Door**
-
-The architecture successfully implements **complete apex domain support** (`cloud.flog.br`) through Azure Front Door integration, following the ADR specifications:
-
-```text
-                           Internet Users
-                                 │
-                                 ▼
-                            Route53 DNS
-                                 │
-                    DNS Failover Routing Policy
-                                 │
-            ┌────────────────────┴────────────────────┐
-            │                                         │
-        PRIMARY                                   SECONDARY
-            │                                         │
-            ▼                                         ▼
-      AWS CloudFront                        Azure Front Door
-            │                                         │
-            ▼                                         ▼
-       Amazon S3                           Azure Storage Website
-     Website Files                            Website Files
-```
-
-### 🎯 **Core Components**
-
-- **🟢 PRIMARY (AWS)**: CloudFront + S3 Static Website
-  - **Domain**: `d32ri76eiboi37.cloudfront.net`
-  - **Bucket**: `cloudcast-weather-vitor-prod-2026`
-  - **SSL**: AWS Certificate Manager
-  
-- **🔵 SECONDARY (Azure)**: Front Door + Azure Storage Static Website  
-  - **Endpoint**: `multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net`
-  - **Storage**: `myaccounttostorageweb.z13.web.core.windows.net`
-  - **SSL**: Auto-managed Azure certificates
-  
-- **🌐 DNS**: Route53 with Health Check-based Failover
-  - **Apex Domain**: `cloud.flog.br` (Full support via Azure Front Door)
-  - **WWW Domain**: `www.cloud.flog.br` (Traditional CNAME failover)
-  - **Health Checks**: 30-second intervals, 3-failure threshold
-
-### ✅ **Failover Logic (OPERATIONAL)**
+### 🎯 Architecture Summary
 
 ```
-🔄 AUTOMATIC FAILOVER:
-cloud.flog.br → Route53 Health Checks
-                     │
-               ┌─────┴─────┐
-               │           │
-          ✅ HEALTHY   ❌ FAILED
-               │           │
-               ▼           ▼
-        AWS CloudFront  Azure Front Door
-        (3.174.83.x)   (150.171.110.37)
+Internet Users
+      ├─── DNS Resolution (Route53) ───┐
+      │                                │
+   PRIMARY (AWS)               SECONDARY (Azure)
+CloudFront Distribution      Azure Front Door
+      │                                │
+   S3 Static Website          Azure Storage Website
 ```
 
-**Current Status**: ✅ **Both endpoints operational and monitored**
+**Failover Method**: Route53 DNS failover with health check monitoring  
+**Recovery Time Objective (RTO)**: < 90 seconds  
+**Recovery Point Objective (RPO)**: Real-time (static content)  
 
-## 📁 Project Structure
+---
 
-```
-.
-├── 🟠 AWS Infrastructure Files
-│   ├── route53-zone.tf          # DNS zone configuration  
-│   ├── route53-records.tf       # DNS records with failover routing
-│   ├── route53-health-checks.tf # Health monitoring (30s intervals)
-│   ├── s3-bucket.tf             # S3 bucket: cloudcast-weather-vitor-prod-2026
-│   ├── s3-bucket-policy.tf      # S3 public access permissions
-│   ├── s3-bucket-website.tf     # S3 static website configuration
-│   └── s3-objects.tf            # Website file uploads (HTML, CSS, JS, assets)
-│
-├── 🔵 Azure Infrastructure Files
-│   ├── azure-resource-group.tf  # Resource group: rg-static-website
-│   ├── azure-storage-account.tf # Storage: myaccounttostorageweb
-│   ├── azure-storage-website.tf # Static website configuration
-│   ├── azure-storage-blobs.tf   # Website file uploads (mirror of AWS)
-│   └── azure-front-door.tf      # 🔑 Front Door for apex domain support
-│       ├── Profile: multicloud-weather-app-prod-fd
-│       ├── Endpoint: multicloud-weather-app-prod-endpoint-*
-│       ├── Custom Domain: cloud.flog.br
-│       ├── SSL Certificate: Auto-managed
-│       └── WAF Policy: Basic protection
-│
-├── ⚙️ Shared Configuration Files  
-│   ├── provider.tf              # AWS + Azure provider setup
-│   ├── versions.tf              # Terraform >= 1.0, providers  
-│   ├── variables.tf             # All input variables
-│   ├── outputs.tf               # Infrastructure outputs (URLs, IDs)
-│   ├── locals.tf                # Common tags, computed values
-│   └── data.tf                  # Data sources (DNS resolution)
-│
-├── website/                     # 🌐 CloudCast Weather Application
-│   ├── index.html              # Main application (7026 bytes)
-│   ├── styles.css              # Responsive design
-│   ├── script.js               # Weather functionality 
-│   ├── error.html              # Custom error page
-│   └── assets/                 # Images and icons
-│       ├── cloud.png, wind.png, humidity.png
-│       ├── location.png, search.png, not-found.png
-│       ├── loading.gif, favicon.ico
-│       └── ... (all assets deployed to both clouds)
-│
-├── .kiro/                      # 🛠️ Development Workflows
-│   ├── adr-implement/          # Architecture Decision Records  
-│   │   └── new.aruitecture.md  # ⭐ Azure Front Door ADR implementation
-│   └── specs/                  # Feature specifications  
-│       └── apex-domain-failover/ # Apex domain failover specification
-│
-├── test-failover.sh           # 🧪 Failover testing script
-├── FAILOVER-GUIDE.md          # 📖 Operational procedures  
-├── terraform.tfvars.example   # 📋 Configuration template
-├── terraform.tfvars           # 🔐 Your credentials (gitignored)
-└── README.md                  # 📚 This documentation
+## 🏗️ Technical Architecture
+
+### Core Infrastructure Components
+
+| Component | AWS (Primary) | Azure (Secondary) | Purpose |
+|-----------|---------------|-------------------|---------|
+| **CDN** | CloudFront `E2TCYEUU1C9JVN` | Front Door `multicloud-weather-app-prod-fd` | Content delivery and caching |
+| **Storage** | S3 `cloudcast-weather-vitor-prod-2026` | Storage Account `myaccounttostorageweb` | Static website hosting |
+| **DNS** | Route53 Zone `Z0047040XW8P8MS7S80T` | - | Authoritative DNS with failover |
+| **Monitoring** | Health Check `2cd5b593-e270-4b14-9839-43c0b4b6d0c3` | Health Check `34b4de7f-bb4e-49ca-b13c-38357bf928b1` | Endpoint availability monitoring |
+| **SSL/TLS** | ACM Certificate | Front Door Managed Certificate | HTTPS encryption |
+
+### DNS Failover Configuration
+
+**Apex Domain Records (`cloud.flog.br`)**:
+```hcl
+# PRIMARY: Route53 Alias → CloudFront
+Type: A (Alias)
+Target: d32ri76eiboi37.cloudfront.net
+Health Check: 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+Failover: PRIMARY
+
+# SECONDARY: Direct IP → Azure Front Door  
+Type: A
+Target: 150.171.110.39
+Health Check: 34b4de7f-bb4e-49ca-b13c-38357bf928b1
+Failover: SECONDARY
 ```
 
-### 🏗️ **Infrastructure Components Map**
+**Health Check Parameters**:
+- **Interval**: 30 seconds
+- **Failure Threshold**: 3 consecutive failures (90 seconds to failover)
+- **Protocol**: HTTPS
+- **Path**: `/` (root)
+- **Expected Status**: HTTP 200
 
-| Component | AWS Resource | Azure Resource | Purpose |
-|-----------|--------------|----------------|---------|
-| **CDN** | CloudFront `E2TCYEUU1C9JVN` | Front Door `multicloud-weather-app-prod-fd` | Global content delivery |
-| **Storage** | S3 `cloudcast-weather-vitor-prod-2026` | Storage `myaccounttostorageweb` | Static website hosting |
-| **DNS** | Route53 Zone `Z0047040XW8P8MS7S80T` | - | Domain management + failover |
-| **Health Checks** | Route53 Health Checks | - | Automatic failover triggering |
-| **SSL** | ACM Certificate | Front Door Managed | HTTPS encryption |
-| **Security** | WAF (CloudFront-managed) | Front Door WAF Policy | Basic protection |
+### Failover Behavior
 
-## 🚀 Quick Start
+1. **Normal Operation**: Traffic routes to AWS CloudFront
+2. **Failure Detection**: Route53 health check detects 3 consecutive HTTP failures
+3. **DNS Failover**: Route53 automatically switches DNS response to Azure Front Door IP
+4. **Service Continuity**: Users continue accessing the site via Azure infrastructure
+5. **Automatic Failback**: When AWS recovers, traffic automatically returns to primary
+
+**Expected Failover Time**: 90-180 seconds (health check detection + DNS propagation)
+
+---
+
+## 📁 Infrastructure Overview
+
+### File Structure by Purpose
+
+```
+├── 🔧 AWS Primary Infrastructure
+│   ├── route53-zone.tf             # DNS hosted zone configuration
+│   ├── route53-records.tf          # DNS records with failover routing
+│   ├── route53-health-checks.tf    # Endpoint health monitoring
+│   ├── s3-bucket.tf                # S3 bucket: cloudcast-weather-vitor-prod-2026
+│   ├── s3-bucket-policy.tf         # Public access configuration
+│   ├── s3-bucket-website.tf        # Static website hosting setup
+│   └── s3-objects.tf               # Website content deployment
+│
+├── 🔧 Azure Secondary Infrastructure  
+│   ├── azure-resource-group.tf     # Resource group: rg-static-website
+│   ├── azure-storage-account.tf    # Storage: myaccounttostorageweb
+│   ├── azure-storage-website.tf    # Static website configuration
+│   ├── azure-storage-blobs.tf     # Website content deployment
+│   └── azure-front-door.tf        # Front Door CDN for apex domain support
+│
+├── ⚙️ Shared Configuration
+│   ├── provider.tf                 # AWS + Azure provider configuration
+│   ├── versions.tf                 # Terraform version constraints
+│   ├── variables.tf                # Input variable definitions
+│   ├── outputs.tf                  # Infrastructure resource outputs
+│   ├── locals.tf                   # Common tags and computed values
+│   └── data.tf                     # External data sources
+│
+├── 🌐 Application Content
+│   └── website/                    # CloudCast weather application
+│       ├── index.html              # Main application
+│       ├── styles.css              # Responsive styling  
+│       ├── script.js               # Weather functionality
+│       ├── error.html              # Error page
+│       └── assets/                 # Images, icons, favicon
+│
+├── 🧪 Testing & Operations
+│   ├── test-failover.sh            # Failover validation script
+│   ├── failover-test-automated.sh  # Automated test execution
+│   ├── MANUAL-FAILOVER-TEST.md     # Manual testing procedures
+│   └── FAILOVER-GUIDE.md           # Operational documentation
+│
+└── 📋 Configuration
+    ├── terraform.tfvars.example    # Configuration template
+    └── terraform.tfvars            # Environment-specific config (gitignored)
+```
+
+---
+
+## 🚀 Deployment Guide
 
 ### Prerequisites
 
-- **Terraform** >= 1.0
-- **AWS CLI** configured with appropriate permissions
-- **Azure CLI** configured with service principal
-- **Domain** registered and ready for delegation to Route53
+- **Terraform** >= 1.0.0
+- **AWS CLI** configured with IAM user permissions
+- **Azure CLI** authenticated with service principal
+- **Registered domain** ready for Route53 delegation
 
-### 1. Configure Variables
+### Step 1: Environment Configuration
 
 ```bash
+# Copy configuration template
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your AWS/Azure credentials and domain
+
+# Edit with your specific configuration
+nano terraform.tfvars
 ```
 
-**Required Configuration:**
+**Required Configuration Values**:
 ```hcl
 # terraform.tfvars
 project_name = "multicloud-weather-app"
 environment  = "prod"
 
-# Your domain
+# DNS Configuration
 dns_config = {
-  domain_name = "your-domain.com"  # Replace with your domain
-  # ... other DNS configuration
+  domain_name         = "yourdomain.com"          # Your registered domain
+  cloudfront_domain   = "auto-generated"          # Will be created
+  acm_certificate_arn = "auto-generated"          # Will be created
+  
+  health_checks = {
+    request_interval  = 30    # Health check frequency (seconds)
+    failure_threshold = 3     # Failures before failover
+  }
+  
+  apex_failover = {
+    enabled = true            # Enable apex domain support
+  }
 }
 
-# AWS credentials (new user recommended)
+# AWS Credentials (IAM User)
 aws_credentials = {
-  access_key = "AKIAXXXXXXXXXXXXXXXX"
-  secret_key = "your-aws-secret-key"
+  access_key = "AKIA..."     # AWS Access Key ID
+  secret_key = "..."         # AWS Secret Access Key
 }
 
-# Azure credentials (service principal)
+# Azure Credentials (Service Principal)  
 azure_credentials = {
-  client_id       = "your-azure-client-id"
-  client_secret   = "your-azure-client-secret"
-  subscription_id = "your-azure-subscription-id"  
-  tenant_id       = "your-azure-tenant-id"
+  client_id       = "..."    # Azure Client ID
+  client_secret   = "..."    # Azure Client Secret
+  subscription_id = "..."    # Azure Subscription ID
+  tenant_id       = "..."    # Azure Tenant ID
 }
 ```
 
-### 2. Deploy Infrastructure
+### Step 2: Infrastructure Deployment
 
 ```bash
-# Initialize Terraform
+# Initialize Terraform providers
 terraform init
 
-# Review the planned infrastructure
+# Validate configuration
+terraform validate
+
+# Review deployment plan
 terraform plan
 
-# Deploy complete multicloud infrastructure
-terraform apply -auto-approve
+# Deploy infrastructure
+terraform apply
 ```
 
-### 3. Configure Domain Delegation
+**Deployment Time**: Approximately 10-15 minutes
 
-**Update your domain registrar** to use the Route53 name servers:
+### Step 3: DNS Delegation
+
+Configure your domain registrar to use Route53 nameservers:
 
 ```bash
-# Get the name servers to configure in your domain registrar
+# Get nameservers from Terraform output
 terraform output route53_zone_name_servers
+
+# Configure these nameservers in your domain registrar:
+# ns-1223.awsdns-24.org
+# ns-2041.awsdns-63.co.uk  
+# ns-472.awsdns-59.com
+# ns-899.awsdns-48.net
 ```
 
-### 4. Verify Deployment ✅
+### Step 4: Validation
 
 ```bash
-# Check all endpoint URLs
+# Check all endpoints
 terraform output website_urls
 
-# Test primary endpoint (AWS)
-curl -I https://d32ri76eiboi37.cloudfront.net
+# Test primary endpoint
+curl -I https://yourdomain.com
 
-# Test secondary endpoint (Azure)  
-curl -I https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net
-
-# Test apex domain with failover
-curl -I https://cloud.flog.br
-
-# Run comprehensive failover test
+# Verify failover configuration
 ./test-failover.sh
 ```
-
-### 5. Expected Results 🎯
-
-After successful deployment:
-- ✅ **CloudCast Weather App** accessible at `https://your-domain.com`
-- ✅ **AWS Primary** serving traffic normally
-- ✅ **Azure Secondary** ready for automatic failover
-- ✅ **DNS Failover** monitoring both endpoints every 30 seconds
 
 ## 🔧 Configuration
 
