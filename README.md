@@ -6,15 +6,7 @@
 
 ### 🎯 Architecture Summary
 
-```
-Internet Users
-      ├─── DNS Resolution (Route53) ───┐
-      │                                │
-   PRIMARY (AWS)               SECONDARY (Azure)
-CloudFront Distribution      Azure Front Door
-      │                                │
-   S3 Static Website          Azure Storage Website
-```
+![Multicloud Failover Architecture](diagrama.png)
 
 **Failover Method**: Route53 DNS failover with health check monitoring  
 **Recovery Time Objective (RTO)**: < 90 seconds  
@@ -108,7 +100,6 @@ Failover: SECONDARY
 │       └── assets/                 # Images, icons, favicon
 │
 ├── 🧪 Testing & Operations
-│   ├── test-failover.sh            # Failover validation script
 │   ├── failover-test-automated.sh  # Automated test execution
 │   ├── MANUAL-FAILOVER-TEST.md     # Manual testing procedures
 │   └── FAILOVER-GUIDE.md           # Operational documentation
@@ -222,547 +213,331 @@ curl -I https://yourdomain.com
 ./test-failover.sh
 ```
 
-## 🔧 Configuration
+---
 
-### 🎛️ **Key Variables**
+## � Operations & Monitoring
 
-| Variable | Description | Example Value |
-|----------|-------------|---------------|
-| `project_name` | Project identifier | `"multicloud-weather-app"` |
-| `environment` | Deployment environment | `"prod"` |
-| `dns_config.domain_name` | Your apex domain | `"cloud.flog.br"` |
-| `aws_credentials` | AWS access keys | `{access_key, secret_key}` |
-| `azure_credentials` | Azure service principal | `{client_id, client_secret, ...}` |
-
-### 🏛️ **Apex Domain Implementation**
-
-This project **successfully implements complete apex domain support** through:
-
-#### ✅ **AWS Configuration**
-- **CloudFront Distribution**: `d32ri76eiboi37.cloudfront.net`
-- **S3 Bucket**: `cloudcast-weather-vitor-prod-2026`
-- **Route53 Alias**: A record pointing to CloudFront
-- **Health Check**: Monitors CloudFront availability
-
-#### ✅ **Azure Configuration**  
-- **Front Door Profile**: `multicloud-weather-app-prod-fd`
-- **Front Door Endpoint**: `multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net`
-- **Storage Account**: `myaccounttostorageweb`
-- **Custom Domain**: `cloud.flog.br` configured in Front Door
-- **WAF Policy**: Basic security protection enabled
-
-#### 🌐 **DNS Failover Configuration**
-```hcl
-# Primary Record (AWS CloudFront)
-cloud.flog.br → ALIAS → d32ri76eiboi37.cloudfront.net (PRIMARY)
-
-# Secondary Record (Azure Front Door IP)  
-cloud.flog.br → A → 150.171.110.37 (SECONDARY)
-```
-
-### 📊 **Infrastructure Outputs**
-
-After deployment, access these URLs:
-```bash
-# Primary endpoint (AWS)
-aws_cloudfront = "https://d32ri76eiboi37.cloudfront.net"
-
-# Secondary endpoint (Azure) 
-azure_frontdoor = "https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net"
-
-# Your custom domain with failover
-custom_domain = "https://cloud.flog.br"
-
-# Direct storage endpoints (for testing)
-aws_s3_direct = "http://cloudcast-weather-vitor-prod-2026.s3-website-us-east-1.amazonaws.com"
-azure_direct = "https://myaccounttostorageweb.z13.web.core.windows.net"
-```
-
-## 📊 Monitoring & Operations
-
-### 🔍 **Health Checks (Active Monitoring)**
-
-The system continuously monitors both endpoints:
-
-| Endpoint | Check Type | Interval | Threshold | Current Status |
-|----------|------------|----------|-----------|----------------|
-| **AWS CloudFront** | HTTPS `/` | 30 seconds | 3 failures | 🟢 **Healthy** |
-| **Azure Front Door** | HTTPS `/` | 30 seconds | 3 failures | 🟢 **Healthy** |
-
-### 💰 **Cost Analysis (Monthly Estimates)**
-
-| Provider | Services | Estimated Cost | Notes |
-|----------|----------|----------------|-------|
-| **AWS** | CloudFront + S3 + Route53 | $50-100/month | Varies with traffic |
-| **Azure** | Front Door + Storage | $30-80/month | Standard tier pricing |
-| **Domain** | Route53 hosted zone | $0.50/month | Plus query charges |
-| **Total** | **Complete multicloud setup** | **$80-180/month** | **Production-ready** |
-
-### ⚡ **Performance Metrics**
-
-- **🌍 Global CDN**: Sub-200ms response times worldwide
-- **📈 Availability**: 99.9%+ uptime with automatic failover  
-- **🚀 Cache**: Optimized cache headers (HTML: 5min, Assets: 24hr)
-- **🔄 Failover Time**: ~90 seconds (3 × 30s health check interval)
-- **📱 Mobile Optimized**: Responsive design with asset compression
-
-### 🎯 **Current Deployment Status**
+### Real-time Status Verification
 
 ```bash
-# Real-time status check
-✅ AWS Primary:    HTTP 200 (CloudFront operational)
-✅ Azure Secondary: HTTP 200 (Front Door operational) 
-✅ DNS Failover:    Active monitoring (Route53)
-✅ Domain Access:   https://cloud.flog.br → Working
-✅ SSL Certificates: Valid and auto-renewing
+# Check current DNS resolution
+dig +short yourdomain.com
 
-# Health check IDs (for monitoring)
-AWS Health Check:   2cd5b593-e270-4b14-9839-43c0b4b6d0c3
-Azure Health Check: 34b4de7f-bb4e-49ca-b13c-38357bf928b1
+# AWS CloudFront IPs (normal): 3.174.83.x, 54.230.x.x
+# Azure Front Door IP (failover): 150.171.110.39
+
+# Verify HTTP response
+curl -I https://yourdomain.com
+
+# Check headers to identify active provider:
+# AWS: "x-cache: Hit from cloudfront", "x-amz-cf-pop"  
+# Azure: "x-azure-ref", "x-cache: TCP_HIT"
 ```
 
-## 🛠️ Development
-
-### 🏃‍♂️ **Local Development**
+### Health Check Monitoring
 
 ```bash
-# Serve CloudCast website locally
-cd website
-python -m http.server 8000
-# Access: http://localhost:8000
+# AWS Primary Health Check Status
+aws route53 get-health-check-status \
+  --health-check-id $(terraform output -raw aws_health_check_id)
 
-# Or use Node.js
-npx http-server website -p 8000
+# Azure Secondary Health Check Status  
+aws route53 get-health-check-status \
+  --health-check-id $(terraform output -raw azure_health_check_id)
+
+# Expected output when healthy:
+# "Success: HTTP Status Code 200, OK. Resolved IP: x.x.x.x"
 ```
 
-### 🧪 **Testing Infrastructure Changes**
+### Performance Metrics
+
+| Metric | Target | Measurement Method |
+|--------|--------|--------------------|
+| **Availability** | 99.9%+ | Health check success rate |
+| **Response Time** | < 300ms | `curl -w "%{time_total}"` |
+| **Failover Time** | < 3 minutes | Automated test script |
+| **Cache Hit Ratio** | > 90% | CDN analytics |
+
+### Cost Analysis (Monthly Estimates)
+
+| Service | AWS Cost | Azure Cost | Notes |
+|---------|----------|------------|-------|
+| **CloudFront** | $20-50 | - | Data transfer dependent |
+| **S3 Storage** | $1-5 | - | Static files (~10MB) |
+| **Route53** | $0.50-2 | - | Hosted zone + health checks |
+| **Azure Front Door** | - | $20-40 | Standard tier |
+| **Azure Storage** | - | $1-3 | Static website hosting |
+| **Total Monthly** | $22-57 | $21-43 | **Combined: $43-100** |
+
+---
+
+## 🧪 Testing & Validation
+
+### Automated Failover Testing
 
 ```bash
-# Validate Terraform syntax
-terraform validate
+# Run comprehensive failover test
+./failover-test-automated.sh
 
-# Plan infrastructure changes  
-terraform plan
-
-# Apply specific resource updates
-terraform apply -target=azurerm_cdn_frontdoor_profile.this
-
-# Test endpoints after changes
-curl -I https://cloud.flog.br
-curl -I https://d32ri76eiboi37.cloudfront.net
-curl -I https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net
+# Test performs:
+# 1. Validates AWS healthy state
+# 2. Induces S3 bucket policy failure  
+# 3. Monitors Route53 failover to Azure
+# 4. Validates Azure Front Door response
+# 5. Restores AWS and verifies failback
 ```
 
-### 📋 **Architecture Decisions**
-
-Implementation follows the **Architecture Decision Record (ADR)**: 
-- **Document**: `.kiro/adr-implement/new.aruitecture.md`  
-- **Rationale**: Azure Front Door for apex domain support
-- **Constraints**: Route53 limitations with Azure Storage CNAMEs
-- **Solution**: Front Door as intermediary layer
-
-### 🔧 **Development Workflow**
-
-1. **Local Testing**: Test website changes locally first
-2. **S3 Upload**: Update AWS S3 bucket content  
-3. **Azure Sync**: Update Azure Storage blobs
-4. **Cache Invalidation**: CloudFront and Front Door cache clearing if needed
-5. **Monitoring**: Verify health checks remain green
-
-### ⚙️ **Terraform State Management**
+### Manual Testing Procedures
 
 ```bash
-# View current state
-terraform show
+# Follow step-by-step manual testing
+# Detailed in MANUAL-FAILOVER-TEST.md
 
-# Import existing resources (if needed)  
-terraform import aws_s3_bucket.this cloudcast-weather-vitor-prod-2026
-
-# Refresh state from actual infrastructure
-terraform refresh
+# Key validation points:
+# - HTTP 200 response maintained during failover
+# - SSL certificates valid on both providers  
+# - DNS resolution switches between providers
+# - Content consistency across endpoints
 ```
+
+### Testing Schedule Recommendations
+
+| Test Type | Frequency | Purpose |
+|-----------|-----------|---------|
+| **Health Check Validation** | Daily | Verify monitoring is active |
+| **Manual Failover Test** | Weekly | Validate procedures |
+| **Automated Failover Test** | Monthly | End-to-end validation |
+| **Disaster Recovery Drill** | Quarterly | Full operational test |
+
+---
 
 ## 🔄 Failover Operations
 
-### 🚨 **Automatic Failover Process**
+### Automatic Failover Process
 
-Detailed failover procedures are documented in `FAILOVER-GUIDE.md`. The system operates as follows:
+The system operates autonomously using Route53 health checks:
 
-#### ⚡ **Real-Time Monitoring**
-```text
-Route53 Health Checks (every 30 seconds)
-        │
-        ▼
-   AWS CloudFront
-   d32ri76eiboi37.cloudfront.net
-        │
-   ┌────┴─────┐
-   ▼          ▼
-✅ Healthy   ❌ Failed (3x)
-   │          │
-   │          ▼
-   │     DNS switches to
-   │     Azure Front Door
-   │     (150.171.110.37)
-   │          │
-   └──────────▼
-    Traffic continues seamlessly
-```
+1. **Normal State**: Route53 monitors AWS CloudFront every 30 seconds
+2. **Failure Detection**: After 3 consecutive failures (90 seconds), Route53 marks AWS as unhealthy
+3. **DNS Switchover**: Route53 returns Azure Front Door IP (150.171.110.39) for DNS queries
+4. **Service Continuity**: Users access site through Azure infrastructure with same SSL certificate
+5. **Automatic Recovery**: When AWS health checks succeed, traffic automatically returns
 
-#### 🔧 **Manual Operations Available**
+**Total Failover Time**: 90 seconds (detection) + 30-60 seconds (DNS propagation) = ~2-3 minutes
 
+### Manual Operations
+
+**Emergency Failover**:
 ```bash
-# Test failover functionality  
-./test-failover.sh
-
-# Check current DNS resolution
-dig +short cloud.flog.br
-
-# Manual health check testing
-curl -I https://d32ri76eiboi37.cloudfront.net        # AWS Primary
-curl -I https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net  # Azure Secondary
-curl -I https://cloud.flog.br                        # Current active endpoint
-
-# Monitor health check status (AWS CLI)
-aws route53 get-health-check --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+# Force immediate DNS switch (emergency only)
+aws route53 change-resource-record-sets \
+  --hosted-zone-id $(terraform output -raw route53_zone_id) \
+  --change-batch file://emergency-dns-switch.json
 ```
 
-#### 🎯 **Failover Scenarios**
-
-| Scenario | Trigger | Action | Recovery Time |
-|----------|---------|---------|---------------|
-| **AWS Outage** | CloudFront health check fails | DNS → Azure Front Door | ~90 seconds |
-| **Azure Standby** | Front Door health check fails | Continue AWS (no impact) | Continuous |
-| **DNS Issues** | Route53 unavailable | Cached DNS responses | Variable |
-| **Complete Regional** | Both providers fail | Manual intervention | Immediate |
-
-### 🛡️ **Disaster Recovery**
-
-- **🔄 Automatic Failback**: When AWS recovers, traffic automatically returns
-- **📊 Monitoring**: Real-time health status visibility
-- **🚨 Alerting**: Custom alerts can be configured via CloudWatch/Azure Monitor
-- **🔧 Manual Override**: Emergency DNS updates available if needed
-
-## 🤝 Contributing
-
-### 🛠️ **Development Guidelines**
-
-#### 📋 **Before Contributing**
-1. **Read the ADR**: Review `.kiro/adr-implement/new.aruitecture.md` for architecture decisions
-2. **Test Locally**: Validate changes with `terraform plan` before applying
-3. **Follow Structure**: Maintain the AWS/Azure/Shared module separation
-4. **Update Documentation**: Keep README and FAILOVER-GUIDE.md current
-
-#### 🏗️ **Infrastructure Changes**
+**Failover Monitoring**:
 ```bash
-# 1. Follow the established naming pattern
-# AWS resources → route53-*, s3-* files
-# Azure resources → azure-* files  
-# Shared config → provider.tf, variables.tf, locals.tf, etc.
-
-# 2. Maintain provider separation
-# Don't mix AWS and Azure resources in same file
-# Use data sources for cross-provider references
-
-# 3. Validate changes
-terraform fmt       # Format code
-terraform validate  # Check syntax
-terraform plan      # Review changes
-
-# 4. Test health checks
-./test-failover.sh  # Verify failover still works
+# Real-time monitoring during incident
+watch -n 10 'echo "DNS Resolution:" && dig +short cloud.flog.br && echo "HTTP Status:" && curl -I https://cloud.flog.br | head -1'
 ```
 
-#### 📝 **Documentation Updates**
-- **README.md**: Architecture overview and setup instructions
-- **FAILOVER-GUIDE.md**: Operational procedures and troubleshooting
-- **terraform.tfvars.example**: Configuration template updates
-- **ADR**: Document architectural decisions in `.kiro/adr-implement/`
+### Operational Procedures
 
-#### 🧪 **Testing Requirements**
-```bash
-# All changes must pass these tests:
-terraform validate                    # ✅ Syntax validation
-terraform plan                       # ✅ No unintended changes  
-curl -I https://cloud.flog.br        # ✅ Domain accessibility
-./test-failover.sh                   # ✅ Failover functionality
+**Pre-planned Maintenance**:
+1. Announce maintenance window
+2. Monitor traffic patterns  
+3. Execute maintenance on primary (AWS)
+4. Verify failover to Azure
+5. Complete maintenance and verify failback
+
+**Incident Response**:
+1. Identify affected provider through monitoring
+2. Verify automatic failover occurred  
+3. Communicate service status
+4. Investigate root cause
+5. Plan restoration and failback
+
+---
+
+## � Security Implementation
+
+### Transport Security
+- **TLS 1.2+ Enforced**: All endpoints require modern encryption
+- **HTTPS Redirect**: HTTP requests automatically redirect to HTTPS
+- **Certificate Management**: 
+  - AWS: ACM with auto-renewal (`arn:aws:acm:us-east-1:910661159891:certificate/05af508f-ca17-4577-ac92-a0a242283040`)
+  - Azure: Front Door managed certificates
+
+### Access Control
+```hcl
+# S3 Bucket Policy (Public Read for Website Content)
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Sid": "PublicReadGetObject",
+    "Effect": "Allow",
+    "Principal": "*", 
+    "Action": "s3:GetObject",
+    "Resource": "arn:aws:s3:::cloudcast-weather-vitor-prod-2026/*"
+  }]
+}
+
+# Azure Storage ($web container public access)
+public_access_type = "container"
+container_name = "$web"
 ```
 
-### 🎯 **Contribution Areas**
-
-#### 🔧 **Infrastructure Improvements**
-- Enhanced monitoring and alerting
-- Additional cloud provider integration (CloudFlare)  
-- Performance optimization
-- Security enhancements
-
-#### 📊 **Operational Excellence**  
-- Automated backup procedures
-- Enhanced health check logic
-- Cost optimization recommendations
-- Performance benchmarking
-
-#### 🌐 **Application Features**
-- Weather API integration
-- Enhanced UI/UX improvements
-- Progressive Web App (PWA) support
-- Mobile responsiveness enhancements
-
-## 📈 Roadmap
-
-### ✅ **Completed (Current Release)**
-- ✅ **Multicloud Architecture**: AWS + Azure fully operational
-- ✅ **Apex Domain Support**: `cloud.flog.br` working via Azure Front Door  
-- ✅ **DNS Failover**: Route53 health check-based switching
-- ✅ **SSL Certificates**: Auto-managed on both providers
-- ✅ **WAF Security**: Basic protection enabled
-- ✅ **Infrastructure as Code**: Complete Terraform automation
-- ✅ **Health Monitoring**: Real-time endpoint monitoring
-
-### 🔮 **Future Enhancements**
-
-#### 🎯 **Phase 1: Enhanced Operations**
-- [ ] **CloudWatch Dashboards**: Real-time monitoring UI
-- [ ] **Azure Monitor Integration**: Unified monitoring across clouds
-- [ ] **Slack/Teams Alerts**: Instant failover notifications
-- [ ] **Performance Analytics**: Response time tracking
-
-#### 🚀 **Phase 2: Advanced Features**  
-- [ ] **CloudFlare Integration**: Third provider for ultra-reliability
-- [ ] **Multi-Region Expansion**: Geographic load distribution
-- [ ] **API Gateway Integration**: Dynamic content support
-- [ ] **Container Deployment**: Docker-based application hosting
-
-#### 🔒 **Phase 3: Enterprise Ready**
-- [ ] **Advanced WAF Rules**: DDoS protection and threat intelligence  
-- [ ] **VPN Integration**: Private cloud connectivity
-- [ ] **Compliance Monitoring**: SOC2, GDPR readiness
-- [ ] **Backup Automation**: Cross-cloud data replication
-
-### 🎨 **Application Enhancements**
-- [ ] **Weather API Integration**: Live weather data
-- [ ] **User Geolocation**: Automatic location detection  
-- [ ] **PWA Support**: Mobile app-like experience
-- [ ] **Dark Mode**: Enhanced user interface
-
-## 🔒 Security
-
-### 🛡️ **Multi-Layer Security Implementation**
-
-#### ✅ **Transport Security**
-- **HTTPS Enforced**: All endpoints redirect HTTP → HTTPS
-- **TLS 1.2+**: Minimum encryption standard across both clouds
-- **SSL Certificates**: 
-  - AWS: ACM-managed (`arn:aws:acm:us-east-1:910661159891:certificate/05af508f-ca17-4577-ac92-a0a242283040`)
-  - Azure: Front Door auto-managed certificates
-- **HSTS**: HTTP Strict Transport Security headers
-
-#### 🔐 **Access Control**
-- **S3 Bucket Policy**: Public read access for website content only
-- **Azure Storage**: Public blob access restricted to `$web` container
-- **IAM Roles**: Least-privilege AWS permissions
-- **Azure RBAC**: Service principal with minimal required permissions
-
-#### 🛡️ **Web Application Firewall (WAF)**
+### Web Application Firewall
 ```hcl
 # Azure Front Door WAF Configuration
-WAF Policy: multicloudweatherappprodwaf
-Mode: Prevention
-Rules: Basic protection against common threats
-Custom Blocks: HTTP 403 with custom response
-```
-
-#### 🔑 **Infrastructure Security**
-- **Terraform State**: Secure state management (local/remote backends)
-- **Credentials**: Managed via Terraform sensitive variables
-- **Network Security**: CloudFront + Front Door edge security
-- **Monitoring**: Health check monitoring for availability attacks
-
-### 🚨 **Security Monitoring**
-
-```bash
-# Check SSL certificate status
-curl -I https://cloud.flog.br | grep -E "(HTTP|Server|X-)"
-
-# Verify HTTPS redirect
-curl -I http://cloud.flog.br
-
-# Test WAF protection (Azure)
-curl -I "https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net/?<script>alert('test')</script>"
-```
-
-## 🚨 Troubleshooting
-
-### 🔍 **Common Issues & Solutions**
-
-#### ❌ **Issue: "NoSuchWebsiteConfiguration" Error**
-```bash
-# Symptom: CloudFront returns 404 with S3 error
-# Cause: CloudFront pointing to wrong S3 bucket
-# Solution: Update CloudFront origin (already fixed)
-
-aws cloudfront get-distribution-config --id E2TCYEUU1C9JVN
-# Verify origin points to: cloudcast-weather-vitor-prod-2026.s3-website-us-east-1.amazonaws.com
-```
-
-#### ❌ **Issue: Azure Front Door 404 on Custom Domain**
-```bash  
-# Symptom: Custom domain association failing
-# Cause: DNS validation or route association issues
-# Solution: Check custom domain status
-
-az cdn custom-domain show \
-  --profile-name multicloud-weather-app-prod-fd \
-  --resource-group rg-static-website \
-  --name cloud-flog-br
-```
-
-#### ❌ **Issue: DNS Not Failing Over**
-```bash
-# Symptom: Traffic still goes to failed endpoint
-# Cause: Health checks not detecting failure properly
-# Debug: Check health check configuration
-
-aws route53 get-health-check --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
-
-# Verify health check is testing correct path and expects correct response
-```
-
-#### ❌ **Issue: "Access Denied" on S3**
-```bash
-# Symptom: AWS operations fail with access denied
-# Cause: Compromised key quarantine or insufficient permissions
-# Solution: Create new IAM user with required permissions
-
-aws sts get-caller-identity  # Check current credentials
-# If quarantined, use new access keys (already provided)
-```
-
-### 🔧 **Diagnostic Commands**
-
-```bash
-# Complete infrastructure status check
-terraform output website_urls
-
-# Test all endpoints
-curl -I https://d32ri76eiboi37.cloudfront.net                                    # AWS CloudFront
-curl -I https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net  # Azure Front Door  
-curl -I https://cloud.flog.br                                                    # Custom domain
-curl -I http://cloudcast-weather-vitor-prod-2026.s3-website-us-east-1.amazonaws.com    # S3 direct
-
-# DNS resolution check
-dig +short cloud.flog.br                    # Should return CloudFront IPs (Primary)
-dig +short @8.8.8.8 cloud.flog.br          # External DNS check
-
-# Health check status
-aws route53 get-health-check-status --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
-
-# Terraform state verification
-terraform plan                              # Should show "No changes"
-terraform refresh && terraform plan        # Refresh and re-check
-```
-
-### 📞 **Support Escalation Path**
-
-1. **Infrastructure Issues**: Check `terraform plan` for drift
-2. **DNS Problems**: Verify health checks with `aws route53 get-health-check-status`
-3. **Performance Issues**: Check CDN cache status and edge locations
-4. **Security Concerns**: Review WAF logs and access patterns  
-5. **Operational Issues**: Consult `FAILOVER-GUIDE.md` for procedures
-
-### 📞 **Support Resources**
-
-#### 🚨 **Emergency Procedures**
-1. **Complete Outage**: Check both AWS and Azure status pages
-2. **DNS Issues**: Verify Route53 health checks and record configuration
-3. **Certificate Problems**: Check ACM (AWS) and Front Door (Azure) SSL status
-4. **Performance Issues**: Review CDN edge location and caching behavior
-
-#### 📚 **Documentation References**
-- **Architecture**: `.kiro/adr-implement/new.aruitecture.md`
-- **Operations**: `FAILOVER-GUIDE.md`  
-- **Testing**: `test-failover.sh`
-- **Configuration**: `terraform.tfvars.example`
-
-#### 🔍 **Monitoring Resources**
-- **Health Check IDs**: See Terraform outputs for current IDs
-- **CloudFront Distribution**: `E2TCYEUU1C9JVN`
-- **Azure Front Door**: `multicloud-weather-app-prod-fd`
-- **Route53 Zone**: `Z0047040XW8P8MS7S80T`
-
-## 📋 Quick Reference
-
-### 🚀 **Essential Commands**
-
-```bash
-# Deployment
-terraform init && terraform apply -auto-approve
-
-# Status Check
-terraform output website_urls
-dig +short cloud.flog.br
-curl -I https://cloud.flog.br
-
-# Failover Test
-./test-failover.sh
-
-# Health Monitoring
-aws route53 get-health-check-status --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
-
-# Infrastructure Verification
-terraform plan  # Should show "No changes"
-```
-
-### 🌐 **Key URLs**
-
-| Purpose | URL | Status |
-|---------|-----|--------|
-| **Production Site** | `https://cloud.flog.br` | 🟢 Active |
-| **AWS Primary** | `https://d32ri76eiboi37.cloudfront.net` | 🟢 Active |  
-| **Azure Secondary** | `https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net` | 🟢 Standby |
-| **AWS S3 Direct** | `http://cloudcast-weather-vitor-prod-2026.s3-website-us-east-1.amazonaws.com` | 🟢 Origin |
-| **Azure Storage Direct** | `https://myaccounttostorageweb.z13.web.core.windows.net` | 🟢 Origin |
-
-### ⚡ **Performance Benchmarks**
-
-```bash
-# Response time testing
-time curl -I https://cloud.flog.br
-time curl -I https://d32ri76eiboi37.cloudfront.net  
-time curl -I https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net
-
-# Expected results:
-# - Global CDN: < 200ms
-# - SSL handshake: < 500ms  
-# - Failover switch: < 90 seconds
+resource "azurerm_cdn_frontdoor_firewall_policy" "this" {
+  name                = "multicloudweatherappprodwaf"
+  mode               = "Prevention"
+  enabled            = true
+  custom_block_response_status_code = 403
+  custom_block_response_body        = base64encode("Access Denied")
+}
 ```
 
 ---
 
-## 🏆 **Implementation Status: COMPLETE**
+## �️ Development & Maintenance
 
-**✅ Mission Accomplished**: Multicloud failover architecture with full apex domain support successfully implemented and operational.
+### Local Development
+```bash
+# Serve website locally for testing
+cd website
+python3 -m http.server 8000
+# Access: http://localhost:8000
+```
 
-### 📊 **Final Architecture Summary**
+### Content Updates
+```bash
+# Deploy new website content to both providers
+terraform apply -target=aws_s3_object.website_files
+terraform apply -target=azurerm_storage_blob.website_files
 
-| Component | Provider | Status | Endpoint |  
-|-----------|----------|--------|----------|
-| **Primary CDN** | AWS CloudFront | 🟢 Active | `d32ri76eiboi37.cloudfront.net` |
-| **Primary Storage** | AWS S3 | 🟢 Active | `cloudcast-weather-vitor-prod-2026` |
-| **Secondary CDN** | Azure Front Door | 🟢 Standby | `multicloud-weather-app-prod-endpoint-*` |
-| **Secondary Storage** | Azure Storage | 🟢 Standby | `myaccounttostorageweb.z13.web.core.windows.net` |
-| **DNS Failover** | Route53 | 🟢 Monitoring | Health checks every 30s |
-| **Custom Domain** | DNS Resolution | 🟢 Working | `https://cloud.flog.br` |
+# Clear CDN caches for immediate visibility
+aws cloudfront create-invalidation \
+  --distribution-id E2TCYEUU1C9JVN \
+  --paths "/*"
+```
 
-### 🎯 **Architecture Achievements**
-- ✅ **Multi-cloud High Availability**: 99.9%+ uptime
-- ✅ **Apex Domain Support**: Full `cloud.flog.br` functionality  
-- ✅ **Automatic Failover**: Health check-based switching
+### Infrastructure Changes
+```bash
+# Always validate changes before applying
+terraform plan
+
+# Apply targeted resource changes
+terraform apply -target=aws_route53_health_check.aws_primary
+
+# Verify health checks remain functional
+aws route53 get-health-check-status --health-check-id [ID]
+./test-failover.sh
+```
+
+### Troubleshooting Common Issues
+
+**DNS Resolution Problems**:
+```bash
+# Verify nameserver delegation
+dig NS cloud.flog.br
+# Should return: ns-1223.awsdns-24.org, ns-2041.awsdns-63.co.uk, etc.
+
+# Check Route53 record configuration
+aws route53 list-resource-record-sets \
+  --hosted-zone-id Z0047040XW8P8MS7S80T
+```
+
+**Health Check Failures**:
+```bash
+# Debug health check status
+aws route53 get-health-check-status \
+  --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+
+# Test endpoints manually
+curl -v https://d32ri76eiboi37.cloudfront.net/
+curl -v https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net/
+```
+
+**SSL Certificate Issues**:
+```bash
+# Check certificate validity and expiration
+echo | openssl s_client -servername cloud.flog.br \
+  -connect cloud.flog.br:443 2>/dev/null | \
+  openssl x509 -noout -dates
+
+# Verify certificate chain
+curl -vvI https://cloud.flog.br 2>&1 | grep -E "(SSL|TLS|certificate)"
+```
+
+---
+
+## � Quick Reference
+
+### Essential Commands
+```bash
+# Infrastructure Deployment
+terraform init && terraform apply
+
+# System Status Check  
+dig +short cloud.flog.br && curl -I https://cloud.flog.br
+
+# Complete Failover Test
+./failover-test-automated.sh
+
+# Health Check Status
+aws route53 get-health-check-status --health-check-id 2cd5b593-e270-4b14-9839-43c0b4b6d0c3
+```
+
+### Key Infrastructure Identifiers
+| Resource | Identifier | Purpose |
+|----------|------------|---------|
+| **Route53 Zone** | `Z0047040XW8P8MS7S80T` | DNS hosted zone |
+| **CloudFront Distribution** | `E2TCYEUU1C9JVN` | AWS CDN |
+| **AWS Health Check** | `2cd5b593-e270-4b14-9839-43c0b4b6d0c3` | Primary endpoint monitoring |
+| **Azure Health Check** | `34b4de7f-bb4e-49ca-b13c-38357bf928b1` | Secondary endpoint monitoring |
+| **S3 Bucket** | `cloudcast-weather-vitor-prod-2026` | AWS static hosting |
+| **Azure Storage** | `myaccounttostorageweb` | Azure static hosting |
+
+### Service Endpoints
+| Service | URL | Status |
+|---------|-----|--------|
+| **Production Site** | `https://cloud.flog.br` | 🟢 Active (failover-enabled) |
+| **AWS Primary** | `https://d32ri76eiboi37.cloudfront.net` | 🟢 Monitored |
+| **Azure Secondary** | `https://multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net` | 🟢 Standby |
+
+---
+
+## ✅ Implementation Status
+
+**Architecture Status**: ✅ **Production Operational**
+
+### Validated Infrastructure
+- ✅ **Multi-cloud Deployment**: AWS CloudFront + S3, Azure Front Door + Storage
+- ✅ **DNS Failover**: Route53 health check-based automatic switching
+- ✅ **Apex Domain Support**: `cloud.flog.br` fully functional via Azure Front Door
+- ✅ **SSL/TLS Security**: Managed certificates operational on both providers
+- ✅ **Health Monitoring**: Real-time endpoint availability (30-second intervals)
 - ✅ **Infrastructure as Code**: Complete Terraform automation
-- ✅ **Production Ready**: SSL, WAF, monitoring included
-- ✅ **Cost Optimized**: Efficient resource utilization
+- ✅ **Operational Procedures**: Comprehensive testing and documentation
 
-**Technologies**: Terraform, AWS (CloudFront, S3, Route53), Azure (Front Door, Storage), DNS Failover  
-**Deployment Model**: Infrastructure as Code, Multi-Provider  
-**Monitoring**: Health Check-based Automatic Failover  
-**Status**: ✅ **FULLY OPERATIONAL**
+### Technical Capabilities
+- 🎯 **High Availability**: 99.9%+ uptime architecture validated
+- 🔄 **Automatic Recovery**: Failover and failback without manual intervention  
+- 🛡️ **Security**: HTTPS enforcement, WAF protection, access controls
+- � **Observabilitcy**: Health status monitoring and DNS resolution tracking
+- 🧪 **Testing**: Automated and manual validation procedures
+- 💰 **Cost Efficiency**: Optimized resource usage (~$50-100/month)
+
+### Operational Readiness
+- ✅ **Deployment**: Infrastructure fully provisioned and configured
+- ✅ **DNS**: Domain delegation active with Route53 nameservers
+- ✅ **Monitoring**: Health checks operational and reporting
+- ✅ **Failover**: Automatic switching validated through testing
+- ✅ **Documentation**: Complete operational and testing procedures
+- ✅ **Security**: SSL certificates installed and WAF policies active
+
+**Production Status**: 🚀 **FULLY OPERATIONAL**
+
+*This infrastructure provides enterprise-grade high availability for static web applications using proven multicloud failover architecture.*
