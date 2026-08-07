@@ -46,40 +46,41 @@ resource "aws_route53_record" "apex_secondary" {
 }
 
 # ====================================
-# WWW SUBDOMAIN RECORDS (www.cloud.flog.br)
+# WWW SUBDOMAIN RECORDS (DISABLED)
+# These records are not needed since we use apex domain failover
 # ====================================
 
-# PRIMARY record for www subdomain - Routes to CloudFront (existing functionality)
-resource "aws_route53_record" "primary" {
-  zone_id = aws_route53_zone.this.zone_id
-  name    = "www.${var.dns_config.domain_name}"
-  type    = "CNAME"
+# Commented out - WWW records not needed for apex domain architecture
+# PRIMARY record for www subdomain - Routes to CloudFront
+# resource "aws_route53_record" "primary" {
+#   zone_id = aws_route53_zone.this.zone_id
+#   name    = "www.${var.dns_config.domain_name}"
+#   type    = "CNAME"
+#
+#   records = [var.dns_config.cloudfront_domain]
+#   ttl     = 60
+#
+#   failover_routing_policy {
+#     type = "PRIMARY"
+#   }
+#
+#   set_identifier  = "www-primary"
+#   health_check_id = aws_route53_health_check.aws_primary.id
+# }
 
-  records = [var.dns_config.cloudfront_domain]
-  ttl     = 60
-
-  failover_routing_policy {
-    type = "PRIMARY"
-  }
-
-  set_identifier  = "www-primary"
-  health_check_id = aws_route53_health_check.aws_primary.id
-}
-
-# SECONDARY failover record - Azure Front Door endpoint directly
-# Temporary fix: using working AFD endpoint instead of storage endpoint
-resource "aws_route53_record" "secondary" {
-  zone_id = aws_route53_zone.this.zone_id
-  name    = "www.${var.dns_config.domain_name}"
-  type    = "CNAME"
-
-  records = ["multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net"]
-  ttl     = 300
-
-  failover_routing_policy {
-    type = "SECONDARY"
-  }
-
-  set_identifier  = "secondary"
-  health_check_id = aws_route53_health_check.azure_secondary.id
-}
+# Commented out - WWW secondary record not needed
+# resource "aws_route53_record" "secondary" {
+#   zone_id = aws_route53_zone.this.zone_id
+#   name    = "www.${var.dns_config.domain_name}"
+#   type    = "CNAME"
+#
+#   records = ["multicloud-weather-app-prod-endpoint-bfbkcmbvbpd6eea7.z02.azurefd.net"]
+#   ttl     = 300
+#
+#   failover_routing_policy {
+#     type = "SECONDARY"
+#   }
+#
+#   set_identifier  = "secondary"
+#   health_check_id = aws_route53_health_check.azure_secondary.id
+# }

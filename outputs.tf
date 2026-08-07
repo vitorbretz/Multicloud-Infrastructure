@@ -92,15 +92,16 @@ output "route53_zone_name_servers" {
   value       = aws_route53_zone.this.name_servers
 }
 
-output "route53_primary_record_fqdn" {
-  description = "The FQDN of the primary DNS record"
-  value       = aws_route53_record.primary.fqdn
-}
+# WWW records outputs disabled (resources were commented out)
+# output "route53_primary_record_fqdn" {
+#   description = "The FQDN of the primary DNS record"
+#   value       = aws_route53_record.primary.fqdn
+# }
 
-output "route53_secondary_record_fqdn" {
-  description = "The FQDN of the secondary DNS record"
-  value       = aws_route53_record.secondary.fqdn
-}
+# output "route53_secondary_record_fqdn" {
+#   description = "The FQDN of the secondary DNS record"
+#   value       = aws_route53_record.secondary.fqdn
+# }
 
 # Health Checks Outputs
 output "aws_health_check_id" {
